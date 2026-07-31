@@ -1,6 +1,6 @@
 #!/bin/sh
 
-openvpn_port="$(uci -q get openvpn.myvpn.port)"
+openvpn_port="$(uci -q get openvpn-server.myvpn.port)"
 [ -z "$openvpn_port" ] && openvpn_port=1194
 
 uci -q batch <<-EOF >/dev/null

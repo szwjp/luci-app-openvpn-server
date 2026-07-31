@@ -1,7 +1,7 @@
 
 --require("luci.tools.webadmin")
 
-mp = Map("openvpn", translate("OpenVPN Server"), translate("An easy config OpenVPN Server Web-UI"))
+mp = Map("openvpn-server", translate("OpenVPN Server"), translate("An easy config OpenVPN Server Web-UI"))
 
 mp:section(SimpleSection).template = "openvpn/openvpn_status"
 
@@ -101,8 +101,8 @@ function Download()
 end
 
 function mp.on_after_commit(self)
-	os.execute("uci set firewall.openvpn.dest_port=$(uci get openvpn.myvpn.port) && uci commit firewall && /etc/init.d/firewall restart")
-	os.execute("/etc/init.d/openvpn restart")
+	os.execute("uci set firewall.openvpn.dest_port=$(uci get openvpn-server.myvpn.port) && uci commit firewall && /etc/init.d/firewall restart")
+	os.execute("/etc/init.d/openvpn-server restart")
 end
 
 return mp

@@ -2,7 +2,7 @@
 module("luci.controller.openvpn-server", package.seeall)
 
 function index()
-	if not nixio.fs.access("/etc/config/openvpn") then
+	if not nixio.fs.access("/etc/config/openvpn-server") then
 		return
 	end
 	

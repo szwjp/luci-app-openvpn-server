@@ -29,6 +29,6 @@ cp /etc/easy-rsa/pki/issued/client1.crt /etc/openvpn/pki/
 cp /etc/easy-rsa/pki/private/client1.key /etc/openvpn/pki/
 
 # Restart openvpn
-/etc/init.d/openvpn restart
+/etc/init.d/openvpn-server restart
 
 echo "OpenVPN Cert renew successfully"

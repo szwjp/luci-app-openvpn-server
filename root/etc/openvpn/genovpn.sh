@@ -1,8 +1,8 @@
 #!/bin/sh
 
-ddns=`uci get openvpn.myvpn.ddns`
-port=`uci get openvpn.myvpn.port`
-proto=`uci get openvpn.myvpn.proto|sed -e 's/server/client/g'`
+ddns=`uci get openvpn-server.myvpn.ddns`
+port=`uci get openvpn-server.myvpn.port`
+proto=`uci get openvpn-server.myvpn.proto|sed -e 's/server/client/g'`
 
 cat > /tmp/my.ovpn  <<EOF
 client
