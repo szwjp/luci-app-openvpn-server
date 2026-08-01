@@ -138,7 +138,7 @@ jobs:
           extract_list() {
             local apkfile="$1" out="$2" dir
             dir="$(mktemp -d)"
-            apk extract --no-chown --destination "$dir" "$apkfile"
+            apk extract --allow-untrusted --no-chown --destination "$dir" "$apkfile"
             ( cd "$dir" && find . \( -type f -o -type l \) ! -path './lib/apk/packages/*' \
                 | sed 's|^\./|/|' | sort ) > "$out"
             rm -rf "$dir"
