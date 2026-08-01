@@ -121,11 +121,15 @@ jobs:
       - name: Fetch dependency packages from ImmortalWrt 25.12.1
         run: |
           set -eo pipefail
-          mkdir -p deps
-          apk fetch --allow-untrusted --output deps \
-            --repository https://downloads.immortalwrt.org/releases/25.12.1/packages/x86_64/packages \
-            openvpn-openssl openvpn-easy-rsa
-          ls -l deps/
+          mkdir -p deps && cd deps
+          REPO="https://downloads.immortalwrt.org/releases/25.12.1/packages/x86_64/packages"
+          for p in openvpn-openssl openvpn-easy-rsa; do
+            f="$(curl -fsSL "$REPO/" | grep -oE "${p}-[0-9][^\"<>]*\.apk" | head -n1)"
+            [ -n "$f" ] || { echo "未在仓库找到 $p"; exit 1; }
+            echo "fetching $f"
+            curl -fsSLO "$REPO/$f"
+          done
+          ls -l
 
       - name: Check file ownership clashes
         run: |
@@ -142,8 +146,8 @@ jobs:
 
           extract_list "$(ls pkg/luci-app-openvpn-server_*.apk)" ours-app.txt
           extract_list "$(ls pkg/luci-i18n-openvpn-server-zh-cn_*.apk)" ours-i18n.txt
-          extract_list "$(ls deps/openvpn-openssl_*.apk)" dep-openssl.txt
-          extract_list "$(ls deps/openvpn-easy-rsa_*.apk)" dep-easyrsa.txt
+          extract_list "$(ls deps/openvpn-openssl-*.apk)" dep-openssl.txt
+          extract_list "$(ls deps/openvpn-easy-rsa-*.apk)" dep-easyrsa.txt
 
           echo "=== 本包文件数 ==="; wc -l ours-app.txt ours-i18n.txt
           echo "=== 依赖文件数 ==="; wc -l dep-openssl.txt dep-easyrsa.txt
