@@ -80,11 +80,9 @@ jobs:
             .github/*.apk
             .github/*.ipk
 
-  image-test:
+  clash-check:
     needs: build
     runs-on: ubuntu-latest
-    env:
-      IB_DIR: ${{ github.workspace }}/../ib
     steps:
       - name: Checkout apk-tools
         uses: actions/checkout@v4
@@ -100,9 +98,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential zstd tar wget file meson ninja-build libssl-dev lua5.1
+            build-essential meson ninja-build libssl-dev lua5.1
 
-      - name: Build apk-tools (for repository indexing)
+      - name: Build apk-tools
         run: |
           pushd apk-tools
           meson setup build \
@@ -120,40 +118,56 @@ jobs:
           name: openvpn-server-packages
           path: pkg
 
-      - name: Download and extract ImmortalWrt ImageBuilder
-        run: |
-          IB=immortalwrt-imagebuilder-25.12.1-x86-64.Linux-x86_64
-          wget -q "https://downloads.immortalwrt.org/releases/25.12.1/targets/x86/64/${IB}.tar.zst"
-          tar -I 'zstd -T0' -xf "${IB}.tar.zst"
-          mv "$IB" "$IB_DIR"
-
-      - name: Prepare local package repository
+      - name: Fetch dependency packages from ImmortalWrt 25.12.1
         run: |
           set -eo pipefail
-          # 1) 拷入自编译的主包与翻译包
-          find pkg -name 'luci-app-openvpn-server_*.apk' -exec cp -v {} "$IB_DIR/packages/" \;
-          find pkg -name 'luci-i18n-openvpn-server-zh-cn_*.apk' -exec cp -v {} "$IB_DIR/packages/" \;
-          # 2) 生成签名密钥；公钥放入 ImageBuilder 信任的 keys/ 目录
-          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$GITHUB_WORKSPACE/local-priv.pem"
-          openssl pkey -in "$GITHUB_WORKSPACE/local-priv.pem" -pubout -out "$IB_DIR/keys/local-openvpn-server.pem"
-          # 3) 给自编译包签名——make image 建索引时会验签，未签名包会被跳过
-          apk adbsign --sign-key "$GITHUB_WORKSPACE/local-priv.pem" \
-            "$IB_DIR/packages/"luci-app-openvpn-server_*.apk \
-            "$IB_DIR/packages/"luci-i18n-openvpn-server-zh-cn_*.apk
-          ls -l "$IB_DIR/packages/" | grep openvpn-server
+          mkdir -p deps
+          apk fetch --allow-untrusted --output deps \
+            --repository https://downloads.immortalwrt.org/releases/25.12.1/packages/x86_64/packages \
+            openvpn-openssl openvpn-easy-rsa
+          ls -l deps/
 
-      - name: Build image (openvpn-openssl + luci-app-openvpn-server)
+      - name: Check file ownership clashes
         run: |
           set -eo pipefail
-          cd "$IB_DIR"
-          # 同时选中 openvpn-openssl 与本包（含翻译），触发 apk 文件归属冲突检查
-          make image \
-            PACKAGES="luci-nginx luci-app-openvpn-server luci-i18n-openvpn-server-zh-cn openvpn-openssl openvpn-easy-rsa kmod-tun" \
-            BIN_DIR=bin 2>&1 | tee "$GITHUB_WORKSPACE/image.log"
+          # 将每个包的文件清单（不含 apk 元数据）提取为排序列表
+          extract_list() {
+            local apkfile="$1" out="$2" dir
+            dir="$(mktemp -d)"
+            apk extract --no-chown --destination "$dir" "$apkfile"
+            ( cd "$dir" && find . \( -type f -o -type l \) ! -path './lib/apk/packages/*' \
+                | sed 's|^\./|/|' | sort ) > "$out"
+            rm -rf "$dir"
+          }
 
-      - name: Upload image build log
+          extract_list "$(ls pkg/luci-app-openvpn-server_*.apk)" ours-app.txt
+          extract_list "$(ls pkg/luci-i18n-openvpn-server-zh-cn_*.apk)" ours-i18n.txt
+          extract_list "$(ls deps/openvpn-openssl_*.apk)" dep-openssl.txt
+          extract_list "$(ls deps/openvpn-easy-rsa_*.apk)" dep-easyrsa.txt
+
+          echo "=== 本包文件数 ==="; wc -l ours-app.txt ours-i18n.txt
+          echo "=== 依赖文件数 ==="; wc -l dep-openssl.txt dep-easyrsa.txt
+
+          fail=0
+          for pair in "ours-app.txt dep-openssl.txt" "ours-app.txt dep-easyrsa.txt" "ours-i18n.txt dep-openssl.txt" "ours-i18n.txt dep-easyrsa.txt"; do
+            set -- $pair
+            echo "=== 冲突检查: $1 vs $2 ==="
+            if comm -12 "$1" "$2" | tee /dev/stderr | grep -q .; then
+              echo "ERROR: $1 与 $2 存在相同归属文件（封装镜像会冲突）"
+              fail=1
+            else
+              echo "OK: 无冲突"
+            fi
+          done
+          [ "$fail" -eq 0 ] || exit 1
+
+      - name: Upload clash-check report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: image-build-log
-          path: ${{ github.workspace }}/image.log
+          name: clash-check-report
+          path: |
+            ours-app.txt
+            ours-i18n.txt
+            dep-openssl.txt
+            dep-easyrsa.txt
