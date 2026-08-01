@@ -55,19 +55,23 @@ jobs:
         run: |
           cat <<EOF >> .config
           CONFIG_PACKAGE_luci-app-openvpn-server=m
+          CONFIG_PACKAGE_luci-i18n-openvpn-server-zh-cn=m
           EOF
           make defconfig
 
-      - name: Compile package
+      - name: Compile packages
         working-directory: ${{ env.SDK_DIR }}
         run: |
+          # 主软件包
           make package/luci-app-openvpn-server/compile V=s 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
+          # 中文翻译包（独立 apk）
+          make package/luci-i18n-openvpn-server-zh-cn/compile V=s 2>&1 | tee -a "$GITHUB_WORKSPACE/build.log"
 
       - name: Collect packages
         if: always()
         run: |
           mkdir -p "$GITHUB_WORKSPACE/out"
-          find "$SDK_DIR/bin" -name 'luci-app-openvpn-server*' -exec cp -v {} "$GITHUB_WORKSPACE/out/" \;
+          find "$SDK_DIR/bin" \( -name 'luci-app-openvpn-server*' -o -name 'luci-i18n-openvpn-server*' \) -exec cp -v {} "$GITHUB_WORKSPACE/out/" \;
 
       - name: Upload package artifact
         if: always()
@@ -105,13 +109,14 @@ jobs:
 
       - name: Build image (openvpn-openssl + luci-app-openvpn-server)
         run: |
-          # 将自编译的 apk 放入 ImageBuilder 本地包目录
+          # 将自编译的主包与中文翻译包 apk 放入 ImageBuilder 本地包目录
           cp pkg/out/luci-app-openvpn-server-*.apk "$IB_DIR/packages/"
+          cp pkg/out/luci-i18n-openvpn-server-*.apk "$IB_DIR/packages/"
           ls -l "$IB_DIR/packages/" | grep openvpn-server
           cd "$IB_DIR"
-          # 同时选中 openvpn-openssl 与本包，触发 apk 文件归属冲突检查
+          # 同时选中 openvpn-openssl 与本包（含翻译），触发 apk 文件归属冲突检查
           make image \
-            PACKAGES="luci-nginx luci-app-openvpn-server openvpn-openssl openvpn-easy-rsa kmod-tun" \
+            PACKAGES="luci-nginx luci-app-openvpn-server luci-i18n-openvpn-server-zh-cn openvpn-openssl openvpn-easy-rsa kmod-tun" \
             BIN_DIR=bin 2>&1 | tee "$GITHUB_WORKSPACE/image.log"
 
       - name: Upload image build log
