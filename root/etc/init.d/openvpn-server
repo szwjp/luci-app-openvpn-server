@@ -37,6 +37,7 @@ server_instance() {
 	local enabled proto port dev topology server comp_lzo
 	local ca dh cert key persist_key persist_tun user group
 	local max_clients keepalive verb status log
+	local duplicate_cn client_to_client redirect_gateway
 
 	config_get_bool enabled "$s" enabled 0
 	[ "$enabled" -gt 0 ] || return 1
@@ -60,6 +61,9 @@ server_instance() {
 	config_get verb "$s" verb
 	config_get status "$s" status
 	config_get log "$s" log
+	config_get duplicate_cn "$s" duplicate_cn
+	config_get client_to_client "$s" client_to_client
+	config_get redirect_gateway "$s" redirect_gateway
 
 	mkdir -p "$CONF_DIR"
 	CONF="$CONF_DIR/openvpn-server-$s.conf"
@@ -84,6 +88,9 @@ server_instance() {
 	emit "$CONF" verb "$verb"
 	emit "$CONF" status "$status"
 	emit "$CONF" log "$log"
+	emit_bool "$CONF" duplicate_cn "$duplicate_cn"
+	emit_bool "$CONF" client_to_client "$client_to_client"
+	emit "$CONF" redirect_gateway "$redirect_gateway"
 	config_list_foreach "$s" push push_line
 
 	procd_open_instance "openvpn-server-$s"

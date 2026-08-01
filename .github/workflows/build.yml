@@ -77,3 +77,46 @@ jobs:
           path: |
             ${{ github.workspace }}/out/
             ${{ github.workspace }}/build.log
+
+  image-test:
+    needs: build
+    runs-on: ubuntu-24.04
+    env:
+      IB_DIR: ${{ github.workspace }}/../ib
+    steps:
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential zstd tar wget file
+
+      - name: Download package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: luci-app-openvpn-server-x86-64
+          path: pkg
+
+      - name: Download and extract ImmortalWrt ImageBuilder
+        run: |
+          IB=immortalwrt-imagebuilder-25.12.1-x86-64.Linux-x86_64
+          wget -q "https://downloads.immortalwrt.org/releases/25.12.1/targets/x86/64/${IB}.tar.zst"
+          tar -I 'zstd -T0' -xf "${IB}.tar.zst"
+          mv "$IB" "$IB_DIR"
+
+      - name: Build image (openvpn-openssl + luci-app-openvpn-server)
+        run: |
+          # 将自编译的 apk 放入 ImageBuilder 本地包目录
+          cp pkg/out/luci-app-openvpn-server-*.apk "$IB_DIR/packages/"
+          ls -l "$IB_DIR/packages/" | grep openvpn-server
+          cd "$IB_DIR"
+          # 同时选中 openvpn-openssl 与本包，触发 apk 文件归属冲突检查
+          make image \
+            PACKAGES="luci-nginx luci-app-openvpn-server openvpn-openssl openvpn-easy-rsa kmod-tun" \
+            BIN_DIR=bin 2>&1 | tee "$GITHUB_WORKSPACE/image.log"
+
+      - name: Upload image build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-build-log
+          path: ${{ github.workspace }}/image.log
