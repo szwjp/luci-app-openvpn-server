@@ -134,7 +134,7 @@ jobs:
           find pkg -name 'luci-app-openvpn-server_*.apk' -exec cp -v {} "$IB_DIR/packages/" \;
           find pkg -name 'luci-i18n-openvpn-server-zh-cn_*.apk' -exec cp -v {} "$IB_DIR/packages/" \;
           # 2) 为本地包目录生成 apk 索引 packages.adb
-          apk mkidx --output "$IB_DIR/packages/packages.adb" "$IB_DIR/packages/"*.apk
+          apk index --output "$IB_DIR/packages/packages.adb" "$IB_DIR/packages/"*.apk
           # 3) 修复 repositories：released 25.12.1 写的是相对路径 packages/packages.adb，
           #    新版 apk 不识别（openwrt#18032），改为绝对路径
           sed -i "s|^packages/packages.adb$|$IB_DIR/packages/packages.adb|" "$IB_DIR/repositories"
