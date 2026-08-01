@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+env:
+  SDK_DIR: ${{ github.workspace }}/../sdk
+
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -30,25 +33,25 @@ jobs:
           SDK=immortalwrt-sdk-25.12.1-x86-64_gcc-14.3.0_musl.Linux-x86_64
           wget -q "https://downloads.immortalwrt.org/releases/25.12.1/targets/x86/64/${SDK}.tar.zst"
           tar -I 'zstd -T0' -xf "${SDK}.tar.zst"
-          mv "$SDK" sdk
+          mv "$SDK" "$SDK_DIR"
 
       - name: Prepare feeds
-        working-directory: sdk
+        working-directory: ${{ env.SDK_DIR }}
         run: |
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
       - name: Overlay this package into the luci feed
         run: |
-          DEST=sdk/feeds/luci/applications/luci-app-openvpn-server
+          DEST="$SDK_DIR/feeds/luci/applications/luci-app-openvpn-server"
           mkdir -p "$DEST"
-          # 清空上游同名包，用本仓库代码完整替换
+          # 清空上游同名包，用本仓库代码完整替换（源为 checkout，不含 sdk）
           find "$DEST" -mindepth 1 -delete
-          rsync -a --exclude='.git' --exclude='.github' ./ "$DEST"/
+          rsync -a --exclude='.git' --exclude='.github' "$GITHUB_WORKSPACE"/ "$DEST"/
           ls -la "$DEST"
 
       - name: Configure
-        working-directory: sdk
+        working-directory: ${{ env.SDK_DIR }}
         run: |
           cat <<EOF >> .config
           CONFIG_PACKAGE_luci-app-openvpn-server=m
@@ -56,15 +59,15 @@ jobs:
           make defconfig
 
       - name: Compile package
-        working-directory: sdk
+        working-directory: ${{ env.SDK_DIR }}
         run: |
-          make package/luci-app-openvpn-server/compile V=s 2>&1 | tee build.log
+          make package/luci-app-openvpn-server/compile V=s 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
 
       - name: Collect packages
         if: always()
         run: |
-          mkdir -p out
-          find sdk/bin -name 'luci-app-openvpn-server*' -exec cp -v {} out/ \;
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          find "$SDK_DIR/bin" -name 'luci-app-openvpn-server*' -exec cp -v {} "$GITHUB_WORKSPACE/out/" \;
 
       - name: Upload package artifact
         if: always()
@@ -72,5 +75,5 @@ jobs:
         with:
           name: luci-app-openvpn-server-${{ matrix.target }}
           path: |
-            out/
-            sdk/build.log
+            ${{ github.workspace }}/out/
+            ${{ github.workspace }}/build.log
