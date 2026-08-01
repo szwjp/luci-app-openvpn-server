@@ -86,11 +86,33 @@ jobs:
     env:
       IB_DIR: ${{ github.workspace }}/../ib
     steps:
+      - name: Checkout apk-tools
+        uses: actions/checkout@v4
+        with:
+          repository: 'alpinelinux/apk-tools'
+          path: 'apk-tools'
+          fetch-depth: 0
+          ref: 'b5a31c0d865342ad80be10d68f1bb3d3ad9b0866'
+
       - name: Install host dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential zstd tar wget file
+            build-essential zstd tar wget file meson ninja-build libssl-dev lua5.1
+
+      - name: Build apk-tools (for repository indexing)
+        run: |
+          pushd apk-tools
+          meson setup build \
+            -Db_lto=true -Dcompressed-help=false -Ddocs=disabled -Dhelp=enabled \
+            -Dlua_version=5.1 -Ddefault_library=static -Durl_backend=wget \
+            -Dzstd=false -Dpython=disabled -Dtests=disabled -Dcrypto_backend=openssl
+          ninja -C build
+          sudo meson install -C build --strip
+          popd
+          apk --version
 
       - name: Download package artifacts
         uses: actions/download-artifact@v4
@@ -105,12 +127,24 @@ jobs:
           tar -I 'zstd -T0' -xf "${IB}.tar.zst"
           mv "$IB" "$IB_DIR"
 
-      - name: Build image (openvpn-openssl + luci-app-openvpn-server)
+      - name: Prepare local package repository
         run: |
-          # 将自编译的主包与中文翻译包 apk 放入 ImageBuilder 本地包目录
+          set -eo pipefail
+          # 1) 拷入自编译的主包与翻译包
           find pkg -name 'luci-app-openvpn-server_*.apk' -exec cp -v {} "$IB_DIR/packages/" \;
           find pkg -name 'luci-i18n-openvpn-server-zh-cn_*.apk' -exec cp -v {} "$IB_DIR/packages/" \;
-          ls -l "$IB_DIR/packages/" | grep openvpn-server
+          # 2) 为本地包目录生成 apk 索引 packages.adb
+          apk mkidx --output "$IB_DIR/packages/packages.adb" "$IB_DIR/packages/"*.apk
+          # 3) 修复 repositories：released 25.12.1 写的是相对路径 packages/packages.adb，
+          #    新版 apk 不识别（openwrt#18032），改为绝对路径
+          sed -i "s|^packages/packages.adb$|$IB_DIR/packages/packages.adb|" "$IB_DIR/repositories"
+          grep -n 'packages.adb' "$IB_DIR/repositories"
+          # 4) 关闭签名校验，接受未签名的自编译包（apk 会加 --allow-untrusted）
+          sed -i 's/^CONFIG_SIGNATURE_CHECK=y.*/# CONFIG_SIGNATURE_CHECK is not set/' "$IB_DIR/.config"
+
+      - name: Build image (openvpn-openssl + luci-app-openvpn-server)
+        run: |
+          set -eo pipefail
           cd "$IB_DIR"
           # 同时选中 openvpn-openssl 与本包（含翻译），触发 apk 文件归属冲突检查
           make image \
