@@ -133,14 +133,14 @@ jobs:
           # 1) 拷入自编译的主包与翻译包
           find pkg -name 'luci-app-openvpn-server_*.apk' -exec cp -v {} "$IB_DIR/packages/" \;
           find pkg -name 'luci-i18n-openvpn-server-zh-cn_*.apk' -exec cp -v {} "$IB_DIR/packages/" \;
-          # 2) 为本地包目录生成 apk 索引 packages.adb
-          apk index --output "$IB_DIR/packages/packages.adb" "$IB_DIR/packages/"*.apk
-          # 3) 修复 repositories：released 25.12.1 写的是相对路径 packages/packages.adb，
-          #    新版 apk 不识别（openwrt#18032），改为绝对路径
-          sed -i "s|^packages/packages.adb$|$IB_DIR/packages/packages.adb|" "$IB_DIR/repositories"
-          grep -n 'packages.adb' "$IB_DIR/repositories"
-          # 4) 关闭签名校验，接受未签名的自编译包（apk 会加 --allow-untrusted）
-          sed -i 's/^CONFIG_SIGNATURE_CHECK=y.*/# CONFIG_SIGNATURE_CHECK is not set/' "$IB_DIR/.config"
+          # 2) 生成签名密钥；公钥放入 ImageBuilder 信任的 keys/ 目录
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$GITHUB_WORKSPACE/local-priv.pem"
+          openssl pkey -in "$GITHUB_WORKSPACE/local-priv.pem" -pubout -out "$IB_DIR/keys/local-openvpn-server.pem"
+          # 3) 给自编译包签名——make image 建索引时会验签，未签名包会被跳过
+          apk adbsign --sign-key "$GITHUB_WORKSPACE/local-priv.pem" \
+            "$IB_DIR/packages/"luci-app-openvpn-server_*.apk \
+            "$IB_DIR/packages/"luci-i18n-openvpn-server-zh-cn_*.apk
+          ls -l "$IB_DIR/packages/" | grep openvpn-server
 
       - name: Build image (openvpn-openssl + luci-app-openvpn-server)
         run: |
