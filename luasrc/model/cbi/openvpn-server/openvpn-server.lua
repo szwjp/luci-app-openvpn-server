@@ -201,7 +201,7 @@ o.write = function(self, section, value)
 	NXFS.writefile(conf, value:gsub("\r\n", "\n"))
 end
 
-local pid = luci.util.exec("/usr/bin/pgrep openvpn")
+local pid = luci.util.exec("/usr/bin/pgrep -f '[o]penvpn-server'")
 
 function openvpn_process_status()
 	local status = "OpenVPN is not running now "
