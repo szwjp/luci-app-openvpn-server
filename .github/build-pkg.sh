@@ -26,9 +26,10 @@ BUILD_NUMBER="${3:-0}"
 if [ "$RELEASE_TYPE" == "release" ]; then
 	PKG_VERSION="$(get_mk_value "PKG_VERSION")"
 else
-	# 快照版本：v<主版本>.<run_number>~<commit>，run_number 每次构建自动 +1
+	# 快照版本：<主版本>.<run_number>~<commit>，run_number 每次构建自动 +1
+	# apk 版本号规则要求数字开头，不能带 v 前缀
 	PKG_MAJOR="$(get_mk_value "PKG_VERSION" | cut -d. -f1)"
-	PKG_VERSION="v${PKG_MAJOR}.${BUILD_NUMBER}~$(git rev-parse --short HEAD)"
+	PKG_VERSION="${PKG_MAJOR}.${BUILD_NUMBER}~$(git rev-parse --short HEAD)"
 fi
 
 I18N_NAME="luci-i18n-openvpn-server-zh-cn"
