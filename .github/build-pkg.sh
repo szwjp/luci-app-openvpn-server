@@ -22,10 +22,13 @@ function get_mk_value() {
 }
 
 PKG_NAME="$(get_mk_value "PKG_NAME")"
+BUILD_NUMBER="${3:-0}"
 if [ "$RELEASE_TYPE" == "release" ]; then
 	PKG_VERSION="$(get_mk_value "PKG_VERSION")"
 else
-	PKG_VERSION="$PKG_SOURCE_DATE_EPOCH~$(git rev-parse --short HEAD)"
+	# 快照版本：v<主版本>.<run_number>~<commit>，run_number 每次构建自动 +1
+	PKG_MAJOR="$(get_mk_value "PKG_VERSION" | cut -d. -f1)"
+	PKG_VERSION="v${PKG_MAJOR}.${BUILD_NUMBER}~$(git rev-parse --short HEAD)"
 fi
 
 I18N_NAME="luci-i18n-openvpn-server-zh-cn"
