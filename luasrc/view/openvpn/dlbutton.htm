@@ -2,16 +2,35 @@
 	OpenVPN Server 客户端配置下载 / 证书重建按钮。
 	走独立 action（download/renew），不经过 CBI 表单提交，
 	避免点击时触发 on_after_commit 导致 VPN 服务重启。
-	renew 为破坏性操作，用 POST + CSRF token。
+	renew 为破坏性操作，用 fetch POST + CSRF token；
+	注意本模板渲染在 CBI 主表单内部，禁止出现嵌套 <form>
+	（浏览器会提前闭合外层表单，导致“保存并应用”等按钮失效）。
 #%>
 <fieldset class="cbi-section">
 	<legend><%=pcdata(translate("OpenVPN Client config file"))%></legend>
 	<p class="cbi-section-descr"><%=pcdata(translate("If you are using IOS client, please download this .ovpn file and send it via QQ or Email to your IOS device"))%></p>
 	<a class="cbi-button cbi-button-apply" href="<%=url('admin/vpn/openvpn-server/download')%>"><%=pcdata(translate("Download .ovpn file"))%></a>
-	<form method="post" action="<%=url('admin/vpn/openvpn-server/renew')%>" style="display:inline">
-		<input type="hidden" name="token" value="<%=token%>" />
-		<input type="submit" class="cbi-button cbi-button-reset" value="<%=pcdata(translate("Rebuild all certificates"))%>" />
-	</form>
+	<input type="button" id="ovpn-renew-btn" class="cbi-button cbi-button-reset" value="<%=pcdata(translate("Rebuild all certificates"))%>" />
+	<script type="text/javascript">//<![CDATA[
+	(function() {
+		var btn = document.getElementById('ovpn-renew-btn');
+		btn.addEventListener('click', function() {
+			if (!confirm('<%:Warning: rebuilding the PKI invalidates ALL previously issued client certificates, every client must import the new config.%>\n\n<%:Rebuild all certificates?%>'))
+				return;
+			btn.disabled = true;
+			fetch('<%=url("admin/vpn/openvpn-server/renew")%>', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+				body: 'token=<%=token%>',
+				redirect: 'follow'
+			}).then(function() {
+				location.reload();
+			}).catch(function() {
+				btn.disabled = false;
+			});
+		});
+	})();
+	//]]></script>
 	<p class="cbi-section-descr" style="color:red">
 		<%=pcdata(translate("Warning: rebuilding the PKI invalidates ALL previously issued client certificates, every client must import the new config."))%>
 	</p>

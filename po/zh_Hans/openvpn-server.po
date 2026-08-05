@@ -229,5 +229,8 @@ msgstr "请输入有效的域名或 IP 地址"
 msgid "Rebuild all certificates"
 msgstr "重建全部证书"
 
+msgid "Rebuild all certificates?"
+msgstr "确定要重建全部证书吗？"
+
 msgid "Warning: rebuilding the PKI invalidates ALL previously issued client certificates, every client must import the new config."
 msgstr "警告：重建 PKI 会作废所有已签发的客户端证书，每个客户端都必须重新导入新配置"
