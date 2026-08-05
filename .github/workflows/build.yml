@@ -109,10 +109,10 @@ jobs:
             Automatically built on ${{ github.run_id }}.
             Commit: ${{ github.sha }}
           files: |
-            .github/luci-app-openvpn-server_*.apk
-            .github/luci-app-openvpn-server_*.ipk
-            .github/luci-i18n-openvpn-server-zh-cn_*.apk
-            .github/luci-i18n-openvpn-server-zh-cn_*.ipk
+            .github/luci-app-openvpn-server-*.apk
+            .github/luci-app-openvpn-server-*.ipk
+            .github/luci-i18n-openvpn-server-zh-cn-*.apk
+            .github/luci-i18n-openvpn-server-zh-cn-*.ipk
           token: ${{ github.token }}
 
   clash-check:
@@ -179,8 +179,8 @@ jobs:
             rm -rf "$dir"
           }
 
-          extract_list "$(ls pkg/luci-app-openvpn-server_*.apk)" ours-app.txt
-          extract_list "$(ls pkg/luci-i18n-openvpn-server-zh-cn_*.apk)" ours-i18n.txt
+          extract_list "$(ls pkg/luci-app-openvpn-server-*.apk)" ours-app.txt
+          extract_list "$(ls pkg/luci-i18n-openvpn-server-zh-cn-*.apk)" ours-i18n.txt
           extract_list "$(ls deps/openvpn-openssl-*.apk)" dep-openssl.txt
           extract_list "$(ls deps/openvpn-easy-rsa-*.apk)" dep-easyrsa.txt
 
