@@ -45,5 +45,5 @@ if [ -x /etc/init.d/openvpn ]; then
 	/etc/init.d/openvpn stop 2>/dev/null
 fi
 
-rm -f /tmp/luci-indexcache
+rm -f /tmp/luci-indexcache*
 exit 0

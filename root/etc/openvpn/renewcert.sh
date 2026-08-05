@@ -1,4 +1,8 @@
 #!/bin/sh
+# 重建整个 PKI（CA + 服务端 + client1 证书）。
+# 注意：重建会作废所有已分发的客户端证书，客户端必须重新导入。
+
+set -e
 
 export EASYRSA_PKI="/etc/easy-rsa/pki"
 export EASYRSA_VARS_FILE="/etc/easy-rsa/vars-server"
@@ -27,6 +31,7 @@ cp /etc/easy-rsa/pki/issued/server.crt /etc/openvpn/pki/
 cp /etc/easy-rsa/pki/private/server.key /etc/openvpn/pki/
 cp /etc/easy-rsa/pki/issued/client1.crt /etc/openvpn/pki/
 cp /etc/easy-rsa/pki/private/client1.key /etc/openvpn/pki/
+chmod 600 /etc/openvpn/pki/server.key /etc/openvpn/pki/client1.key
 
 # Restart openvpn
 /etc/init.d/openvpn-server restart

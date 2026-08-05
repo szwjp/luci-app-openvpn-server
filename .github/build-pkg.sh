@@ -111,7 +111,21 @@ default_postinst
 . ${IPKG_INSTROOT}/lib/functions.sh
 export root="${IPKG_INSTROOT}"
 export pkgname="'"$PKG_NAME"'"
-default_prerm' > "$TEMP_DIR/pre-deinstall"
+default_prerm
+[ -n "${IPKG_INSTROOT}" ] || {
+	# 卸载清理：删除本包创建的防火墙规则/zone，恢复系统 openvpn 服务
+	uci -q batch <<-EOF
+		delete firewall.openvpn
+		delete firewall.vpn
+		delete firewall.vpntowan
+		delete firewall.vpntolan
+		delete firewall.lantovpn
+		commit firewall
+	EOF
+	/etc/init.d/firewall restart 2>/dev/null
+	[ -x /etc/init.d/openvpn ] && /etc/init.d/openvpn enable 2>/dev/null
+	exit 0
+}' > "$TEMP_DIR/pre-deinstall"
 
 	apk mkpkg \
 		--info "name:$PKG_NAME" \
@@ -155,18 +169,24 @@ else
 default_postinst $0 $@' > "$TEMP_PKG_DIR/CONTROL/postinst"
 	chmod 0755 "$TEMP_PKG_DIR/CONTROL/postinst"
 
-	echo -e '[ -n "\${IPKG_INSTROOT}" ] || {
-	[ -f /etc/uci-defaults/openvpn-server ] && { ( . /etc/uci-defaults/openvpn-server ) && rm -f /etc/uci-defaults/openvpn-server; }
-	rm -f /tmp/luci-indexcache
-	rm -rf /tmp/luci-modulecache/
-	exit 0
-}' > "$TEMP_PKG_DIR/CONTROL/postinst-pkg"
-	chmod 0755 "$TEMP_PKG_DIR/CONTROL/postinst-pkg"
-
 	echo -e '#!/bin/sh
 [ -s ${IPKG_INSTROOT}/lib/functions.sh ] || exit 0
 . ${IPKG_INSTROOT}/lib/functions.sh
-default_prerm $0 $@' > "$TEMP_PKG_DIR/CONTROL/prerm"
+default_prerm $0 $@
+[ -n "${IPKG_INSTROOT}" ] || {
+	# 卸载清理：删除本包创建的防火墙规则/zone，恢复系统 openvpn 服务
+	uci -q batch <<-EOF
+		delete firewall.openvpn
+		delete firewall.vpn
+		delete firewall.vpntowan
+		delete firewall.vpntolan
+		delete firewall.lantovpn
+		commit firewall
+	EOF
+	/etc/init.d/firewall restart 2>/dev/null
+	[ -x /etc/init.d/openvpn ] && /etc/init.d/openvpn enable 2>/dev/null
+	exit 0
+}' > "$TEMP_PKG_DIR/CONTROL/prerm"
 	chmod 0755 "$TEMP_PKG_DIR/CONTROL/prerm"
 
 	ipkg-build -m "" "$TEMP_PKG_DIR" "$TEMP_DIR"

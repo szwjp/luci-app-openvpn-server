@@ -1,0 +1,18 @@
+<%#
+	OpenVPN Server 客户端配置下载 / 证书重建按钮。
+	走独立 action（download/renew），不经过 CBI 表单提交，
+	避免点击时触发 on_after_commit 导致 VPN 服务重启。
+	renew 为破坏性操作，用 POST + CSRF token。
+#%>
+<fieldset class="cbi-section">
+	<legend><%=pcdata(translate("OpenVPN Client config file"))%></legend>
+	<p class="cbi-section-descr"><%=pcdata(translate("If you are using IOS client, please download this .ovpn file and send it via QQ or Email to your IOS device"))%></p>
+	<a class="cbi-button cbi-button-apply" href="<%=url('admin/vpn/openvpn-server/download')%>"><%=pcdata(translate("Download .ovpn file"))%></a>
+	<form method="post" action="<%=url('admin/vpn/openvpn-server/renew')%>" style="display:inline">
+		<input type="hidden" name="token" value="<%=token%>" />
+		<input type="submit" class="cbi-button cbi-button-reset" value="<%=pcdata(translate("Rebuild all certificates"))%>" />
+	</form>
+	<p class="cbi-section-descr" style="color:red">
+		<%=pcdata(translate("Warning: rebuilding the PKI invalidates ALL previously issued client certificates, every client must import the new config."))%>
+	</p>
+</fieldset>

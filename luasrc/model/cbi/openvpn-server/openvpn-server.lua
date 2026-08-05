@@ -4,6 +4,7 @@
 mp = Map("openvpn-server", translate("OpenVPN Server"), translate("An easy config OpenVPN Server Web-UI"))
 
 local NXFS = require "nixio.fs"
+local UCI = require "luci.model.uci"
 
 mp:section(SimpleSection).template = "openvpn/openvpn_status"
 
@@ -29,9 +30,18 @@ port = s:taboption("basic", Value, "port", translate("Port"))
 port.datatype = "range(1, 65535)"
 
 ddns = s:taboption("basic", Value, "ddns", translate("WAN DDNS or IP"))
-ddns.datatype = "string"
-ddns.default = "exmple.com"
 ddns.rmempty = false
+function ddns.validate(self, value)
+	if value == "" then
+		return nil, translate("WAN DDNS or IP is required")
+	end
+
+	if value:match("^[%w%.%-:%_]+$") then
+		return value
+	end
+
+	return nil, translate("Please enter a valid domain or IP address")
+end
 
 localnet = s:taboption("basic", Value, "server", translate("Client Network"))
 localnet.datatype = "string"
@@ -121,6 +131,12 @@ local function copy_uploaded_file(source, target)
 
 	input:close()
 	output:close()
+
+	-- 私钥必须收紧权限（受 umask 影响默认可能是 0644）
+	if target:match("%.key$") then
+		NXFS.chmod(target, 0x180) -- 0600
+	end
+
 	return true
 end
 
@@ -170,21 +186,10 @@ status = s:taboption("debug", Value, "status", translate("Status file"))
 log = s:taboption("debug", Value, "log", translate("Log file"))
 
 local o
-o = s:taboption("basic", Button, "certificate", translate("OpenVPN Client config file"))
-o.inputtitle = translate("Download .ovpn file")
-o.description = translate("If you are using IOS client, please download this .ovpn file and send it via QQ or Email to your IOS device")
-o.inputstyle = "reload"
-o.write = function()
-	luci.sys.call("sh /etc/openvpn/genovpn.sh 2>&1 >/dev/null")
-	Download()
-end
-
-local o
-o = s:taboption("basic", Button, "renew_certificate", translate("Renew OpenVPN certificate files"))
-o.inputtitle = translate("Renew")
-o.inputstyle = "reload"
-o.write = function()
-	luci.sys.call("sh /etc/openvpn/renewcert.sh 2>&1 >/dev/null &")
+o = s:taboption("basic", DummyValue, "certificate", translate("OpenVPN Client config file"))
+o.template = "openvpn/dlbutton"
+o.cfgvalue = function(self, section)
+	return ""
 end
 
 s:tab("code", translate("Special Code"))
@@ -201,39 +206,33 @@ o.write = function(self, section, value)
 	NXFS.writefile(conf, value:gsub("\r\n", "\n"))
 end
 
-local pid = luci.util.exec("/usr/bin/pgrep -f '[o]penvpn-server'")
-
-function openvpn_process_status()
-	local status = "OpenVPN is not running now "
-
-	if pid ~= "" then
-		status = "OpenVPN is running with the PID " .. pid .. ""
-	end
-
-	local status = { status=status }
-	local table = { pid=status }
-	return table
-end
-
-function Download()
-	local t,e
-	t=nixio.open("/tmp/my.ovpn","r")
-	luci.http.header('Content-Disposition','attachment; filename="my.ovpn"')
-	luci.http.prepare_content("application/octet-stream")
-	while true do
-		e=t:read(nixio.const.buffersize)
-		if(not e)or(#e==0)then
-			break
-		else
-			luci.http.write(e)
-		end
-	end
-	t:close()
-	luci.http.close()
-end
-
 function mp.on_after_commit(self)
-	os.execute("uci set firewall.openvpn.dest_port=$(uci get openvpn-server.myvpn.port) && uci commit firewall && /etc/init.d/firewall restart")
+	local port = "1194"
+	local found = false
+	local fw = UCI.cursor()
+
+	-- 取第一个启用实例的端口，不再硬编码 section 名
+	fw:foreach("openvpn-server", "openvpn", function(s)
+		if not found and s.enabled == "1" then
+			found = true
+			port = s.port or "1194"
+		end
+	end)
+
+	-- 规则存在时仅同步端口（保留用户自定义）；不存在时创建基础放行规则
+	if fw:get("firewall", "openvpn") then
+		fw:set("firewall", "openvpn", "dest_port", port)
+	else
+		fw:set("firewall", "openvpn", "rule")
+		fw:set("firewall", "openvpn", "name", "openvpn")
+		fw:set("firewall", "openvpn", "target", "ACCEPT")
+		fw:set("firewall", "openvpn", "src", "wan")
+		fw:set("firewall", "openvpn", "proto", "tcp udp")
+		fw:set("firewall", "openvpn", "dest_port", port)
+	end
+	fw:commit("firewall")
+
+	os.execute("/etc/init.d/firewall restart")
 	os.execute("/etc/init.d/openvpn-server restart")
 end
 

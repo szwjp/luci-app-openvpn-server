@@ -32,6 +32,15 @@ ERROR: luci-app-openvpn-server-3.0-r0: trying to overwrite
 
 CI 的 `clash-check` job 会拉取真实的 `openvpn-openssl`/`openvpn-easy-rsa` 包，与本包做文件归属交集校验，持续保证封装不冲突。
 
+## v3.2 行为变更
+
+- **下载/重建证书按钮独立**：不再走 CBI 表单提交，点击后不会重启 VPN 服务；重建证书为破坏性操作，改用 POST + CSRF token。
+- **防火墙规则同步**：保存配置时自动同步 `firewall.openvpn` 的 `dest_port`（取第一个启用实例的端口，不再硬编码 section 名）；规则不存在时自动创建基础放行规则。
+- **卸载清理**：卸载时删除本包创建的 `firewall.vpn` zone 与 `firewall.openvpn` 规则，并恢复系统 `openvpn` 服务为启用状态（安装时会停用旧 openvpn 服务以防端口冲突）。
+- **WAN DDNS/IP 必填校验**：保存时校验域名/IP 格式，避免生成错误的客户端配置。
+- **证书文件权限**：上传或重建的服务端/客户端私钥统一 `chmod 600`。
+- **状态文件默认路径**：`/tmp/openvpn_status.log`（openvpn 以 nobody 运行，`/var/log` 可能不可写）。
+
 ## 编译
 
 两种方式：
