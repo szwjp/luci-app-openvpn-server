@@ -24,7 +24,12 @@ function get_mk_value() {
 PKG_NAME="$(get_mk_value "PKG_NAME")"
 BUILD_NUMBER="${3:-0}"
 if [ "$RELEASE_TYPE" == "release" ]; then
-	PKG_VERSION="$(get_mk_value "PKG_VERSION")"
+	PKG_RELEASE="$(get_mk_value "PKG_RELEASE")"
+	if [ "$PKG_MGR" == "apk" ]; then
+		PKG_VERSION="$(get_mk_value "PKG_VERSION")-r${PKG_RELEASE}"
+	else
+		PKG_VERSION="$(get_mk_value "PKG_VERSION")-${PKG_RELEASE}"
+	fi
 else
 	# 快照版本：<主版本>.<run_number>~<commit>，run_number 每次构建自动 +1
 	# apk 版本号规则要求数字开头，不能带 v 前缀
