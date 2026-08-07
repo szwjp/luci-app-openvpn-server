@@ -9,7 +9,7 @@ set -o errexit
 set -o pipefail
 
 PKG_MGR="${1:-apk}"
-RELEASE_TYPE="${2:-snapshot}"
+BUILD_NUMBER="${2:-0}"
 
 export PKG_SOURCE_DATE_EPOCH="$(date "+%s")"
 export SOURCE_DATE_EPOCH="$PKG_SOURCE_DATE_EPOCH"
@@ -22,13 +22,15 @@ function get_mk_value() {
 }
 
 PKG_NAME="$(get_mk_value "PKG_NAME")"
-BUILD_NUMBER="${3:-0}"
-if [ "$RELEASE_TYPE" == "release" ]; then
-	PKG_RELEASE="$(get_mk_value "PKG_RELEASE")"
+# 优先使用 Makefile 中的 PKG_VERSION/PKG_RELEASE（apk: 3.2-r99，ipk: 3.2-99），
+# 未定义时回退到快照版本
+PKG_VERSION="$(get_mk_value "PKG_VERSION")"
+PKG_RELEASE="$(get_mk_value "PKG_RELEASE")"
+if [ -n "$PKG_VERSION" ] && [ -n "$PKG_RELEASE" ]; then
 	if [ "$PKG_MGR" == "apk" ]; then
-		PKG_VERSION="$(get_mk_value "PKG_VERSION")-r${PKG_RELEASE}"
+		PKG_VERSION="$PKG_VERSION-r$PKG_RELEASE"
 	else
-		PKG_VERSION="$(get_mk_value "PKG_VERSION")-${PKG_RELEASE}"
+		PKG_VERSION="$PKG_VERSION-$PKG_RELEASE"
 	fi
 else
 	# 快照版本：<主版本>.<run_number>~<commit>，run_number 每次构建自动 +1

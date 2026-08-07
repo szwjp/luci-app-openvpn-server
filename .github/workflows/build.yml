@@ -70,8 +70,8 @@ jobs:
 
       - name: Build packages (apk + ipk)
         run: |
-          fakeroot bash .github/build-pkg.sh apk "${{ github.event_name }}" "${{ github.run_number }}"
-          fakeroot bash .github/build-pkg.sh ipk "${{ github.event_name }}" "${{ github.run_number }}"
+          fakeroot bash .github/build-pkg.sh apk "${{ github.run_number }}"
+          fakeroot bash .github/build-pkg.sh ipk "${{ github.run_number }}"
           ls -l .github/*.apk .github/*.ipk
 
       - name: Upload package artifacts
