@@ -154,7 +154,7 @@ default_prerm
 		--files "$TEMP_PKG_DIR" \
 		--output "$TEMP_DIR/${PKG_NAME}-${PKG_VERSION}.apk"
 
-	mv "$TEMP_DIR/${PKG_NAME}-${PKG_VERSION}.apk" "$BASE_DIR/${PKG_NAME}-${PKG_VERSION}-all.apk"
+	mv "$TEMP_DIR/${PKG_NAME}-${PKG_VERSION}.apk" "$BASE_DIR/${PKG_NAME}-${PKG_VERSION}.apk"
 else
 	cat > "$TEMP_PKG_DIR/CONTROL/control" <<-EOF
 		Package: $PKG_NAME
@@ -202,7 +202,7 @@ default_prerm $0 $@
 
 	ipkg-build -m "" "$TEMP_PKG_DIR" "$TEMP_DIR"
 
-	mv "$TEMP_DIR/${PKG_NAME}_${PKG_VERSION}_all.ipk" "$BASE_DIR/${PKG_NAME}-${PKG_VERSION}-all.ipk"
+	mv "$TEMP_DIR/${PKG_NAME}_${PKG_VERSION}_all.ipk" "$BASE_DIR/${PKG_NAME}-${PKG_VERSION}.ipk"
 fi
 
 # 中文翻译子包
@@ -220,7 +220,7 @@ if [ "$PKG_MGR" == "apk" ]; then
 		--info "depends:$PKG_NAME" \
 		--files "$I18N_DIR" \
 		--output "$TEMP_DIR/${I18N_NAME}-${PKG_VERSION}.apk"
-	mv "$TEMP_DIR/${I18N_NAME}-${PKG_VERSION}.apk" "$BASE_DIR/${I18N_NAME}-${PKG_VERSION}-all.apk"
+	mv "$TEMP_DIR/${I18N_NAME}-${PKG_VERSION}.apk" "$BASE_DIR/${I18N_NAME}-${PKG_VERSION}.apk"
 else
 	mkdir -p "$I18N_DIR/CONTROL/"
 	cat > "$I18N_DIR/CONTROL/control" <<-EOFCTRL
@@ -231,7 +231,7 @@ else
 		Description: OpenVPN Server Chinese translation
 	EOFCTRL
 	ipkg-build -m "" "$I18N_DIR" "$TEMP_DIR"
-	mv "$TEMP_DIR/${I18N_NAME}_${PKG_VERSION}_all.ipk" "$BASE_DIR/${I18N_NAME}-${PKG_VERSION}-all.ipk"
+	mv "$TEMP_DIR/${I18N_NAME}_${PKG_VERSION}_all.ipk" "$BASE_DIR/${I18N_NAME}-${PKG_VERSION}.ipk"
 fi
 
 rm -rf "$TEMP_DIR"
