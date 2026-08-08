@@ -9,8 +9,8 @@ LUCI_TITLE:=LuCI support for OpenVPN Server
 LUCI_DEPENDS:=+luci-compat +openvpn-openssl +openvpn-easy-rsa +kmod-tun
 
 PKG_NAME:=luci-app-openvpn-server
-PKG_VERSION:=27.186.01099
-PKG_RELEASE:=99
+PKG_VERSION:=27.188.01099
+PKG_RELEASE:=2f9cc88
 PKG_LICENSE:=Apache-2.0
 
 include $(TOPDIR)/feeds/luci/luci.mk
