@@ -68,6 +68,13 @@ jobs:
           curl -fLO "https://raw.githubusercontent.com/openwrt/openwrt/master/scripts/ipkg-build"
           sudo install -m0755 ipkg-build /usr/local/bin/ipkg-build
 
+      - name: Validate syntax and firewall logic
+        run: |
+          sh -n root/etc/uci-defaults/openvpn-server
+          sh -n .github/build-pkg.sh
+          luac5.1 -p luasrc/model/cbi/openvpn-server/openvpn-server.lua
+          sh .github/tests/test-uci-defaults.sh
+
       - name: Build packages (apk + ipk)
         run: |
           fakeroot bash .github/build-pkg.sh apk "${{ github.run_number }}"

@@ -231,15 +231,32 @@ function mp.on_after_commit(self)
 		fw:set("firewall", "openvpn", "dest_port", port)
 	end
 
-	-- 兜底确保 vpn zone 与转发规则存在。
+	-- 兜底确保 vpn zone 与转发规则存在且配置正确。
 	-- zone 的 section 名用 openvpn_zone、name 用 'openvpn'（fw4 按 name 匹配），
 	-- 避免与 ipsec-vpnd 的大小写 vpn/VPN section 混淆导致 zone 丢失、转发静默失效。
-	if not fw:get("firewall", "openvpn_zone") then
+	local zone = fw:get("firewall", "openvpn_zone")
+	if not zone then
 		fw:set("firewall", "openvpn_zone", "zone")
 		fw:set("firewall", "openvpn_zone", "name", "openvpn")
 		fw:set("firewall", "openvpn_zone", "input", "ACCEPT")
 		fw:set("firewall", "openvpn_zone", "forward", "ACCEPT")
 		fw:set("firewall", "openvpn_zone", "output", "ACCEPT")
+	elseif zone ~= "zone" then
+		-- 存在但类型被改（罕见），修正为 zone
+		fw:set("firewall", "openvpn_zone", "zone")
+	end
+	if fw:get("firewall", "openvpn_zone", "name") ~= "openvpn" then
+		fw:set("firewall", "openvpn_zone", "name", "openvpn")
+	end
+	-- device 列表必须包含 tun0，缺失则补（zone 被重建或改动后自愈）
+	local devs = fw:get_list("firewall", "openvpn_zone", "device")
+	local has_tun0 = false
+	if devs then
+		for _, dev in ipairs(devs) do
+			if dev == "tun0" then has_tun0 = true end
+		end
+	end
+	if not has_tun0 then
 		fw:add_list("firewall", "openvpn_zone", "device", "tun0")
 	end
 
@@ -249,10 +266,22 @@ function mp.on_after_commit(self)
 		{ "lantovpn", "lan", "openvpn" }
 	}
 	for _, f in ipairs(forwards) do
-		if not fw:get("firewall", f[1]) then
+		local cur = fw:get("firewall", f[1])
+		if not cur then
 			fw:set("firewall", f[1], "forwarding")
 			fw:set("firewall", f[1], "src", f[2])
 			fw:set("firewall", f[1], "dest", f[3])
+		else
+			-- 旧版遗留规则 src/dest 指向已不存在的 'vpn' zone 时，fw4 转发会静默失效，必须修正
+			if cur ~= "forwarding" then
+				fw:set("firewall", f[1], "forwarding")
+			end
+			if fw:get("firewall", f[1], "src") ~= f[2] then
+				fw:set("firewall", f[1], "src", f[2])
+			end
+			if fw:get("firewall", f[1], "dest") ~= f[3] then
+				fw:set("firewall", f[1], "dest", f[3])
+			end
 		end
 	end
 	fw:commit("firewall")

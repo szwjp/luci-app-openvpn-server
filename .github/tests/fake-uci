@@ -1,0 +1,70 @@
+#!/bin/sh
+# 极简 uci 模拟器：用文本状态文件（每行 key=value）模拟 /etc/config 读写，
+# 供离线测试 openvpn-server 等包的 uci-defaults 防火墙规则逻辑，无需 OpenWrt 环境。
+# 用法：FAKE_UCI_STATE=<状态文件> PATH=<本目录>:$PATH sh 被测脚本
+#
+# 支持的语义：get / delete / commit / batch（delete、set、add_list、commit）。
+# 不支持：网络/防火墙相关操作、通配符、rename 等（测试未用到）。
+STATE="$FAKE_UCI_STATE"
+[ -n "$STATE" ] || { echo "fake-uci: FAKE_UCI_STATE 未设置" >&2; exit 2; }
+[ -f "$STATE" ] || : > "$STATE"
+
+# 删除 key 自身及其所有子项（delete firewall.vpn 同时清 firewall.vpn.*）
+# 注意：grep -v 排除全部行时退出码为 1，不能与 mv 用 && 连接，否则最后一行会残留
+drop() {
+	ekey=$(printf '%s' "$1" | sed 's/\./[.]/g')
+	grep -v "^${ekey}\." "$STATE" > "$STATE.tmp"
+	mv "$STATE.tmp" "$STATE"
+	grep -v "^${ekey}=" "$STATE" > "$STATE.tmp"
+	mv "$STATE.tmp" "$STATE"
+}
+
+# 仅删除 key 自身（set 覆盖旧值）
+drop_self() {
+	ekey=$(printf '%s' "$1" | sed 's/\./[.]/g')
+	grep -v "^${ekey}=" "$STATE" > "$STATE.tmp"
+	mv "$STATE.tmp" "$STATE"
+}
+
+[ "$1" = "-q" ] && shift
+cmd="$1"
+shift
+case "$cmd" in
+get)
+	key="$1"
+	v=$(grep "^$key=" "$STATE" | tail -1 | sed 's/^[^=]*=//' | tr -d "'")
+	[ -n "$v" ] && echo "$v"
+	;;
+delete)
+	drop "$1"
+	;;
+commit) : ;;
+batch)
+	while IFS= read -r line || [ -n "$line" ]; do
+		case "$line" in
+		*EOF*|"") continue ;;
+		esac
+		# 有意分词：batch 行按空格拆命令
+		set -- $line
+		case "$1" in
+		delete)
+			drop "$2"
+			;;
+		set)
+			spec="$2"
+			key="${spec%%=*}"
+			val=$(printf '%s' "${spec#*=}" | tr -d "'")
+			drop_self "$key"
+			printf '%s=%s\n' "$key" "$val" >> "$STATE"
+			;;
+		add_list)
+			spec="$2"
+			key="${spec%%=*}"
+			val=$(printf '%s' "${spec#*=}" | tr -d "'")
+			printf '%s=%s\n' "$key" "$val" >> "$STATE"
+			;;
+		commit) : ;;
+		esac
+	done
+	;;
+esac
