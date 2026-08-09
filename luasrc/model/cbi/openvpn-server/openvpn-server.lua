@@ -230,6 +230,31 @@ function mp.on_after_commit(self)
 		fw:set("firewall", "openvpn", "proto", "tcp udp")
 		fw:set("firewall", "openvpn", "dest_port", port)
 	end
+
+	-- 兜底确保 vpn zone 与转发规则存在。
+	-- zone 的 section 名用 openvpn_zone、name 用 'openvpn'（fw4 按 name 匹配），
+	-- 避免与 ipsec-vpnd 的大小写 vpn/VPN section 混淆导致 zone 丢失、转发静默失效。
+	if not fw:get("firewall", "openvpn_zone") then
+		fw:set("firewall", "openvpn_zone", "zone")
+		fw:set("firewall", "openvpn_zone", "name", "openvpn")
+		fw:set("firewall", "openvpn_zone", "input", "ACCEPT")
+		fw:set("firewall", "openvpn_zone", "forward", "ACCEPT")
+		fw:set("firewall", "openvpn_zone", "output", "ACCEPT")
+		fw:add_list("firewall", "openvpn_zone", "device", "tun0")
+	end
+
+	local forwards = {
+		{ "vpntowan", "openvpn", "wan" },
+		{ "vpntolan", "openvpn", "lan" },
+		{ "lantovpn", "lan", "openvpn" }
+	}
+	for _, f in ipairs(forwards) do
+		if not fw:get("firewall", f[1]) then
+			fw:set("firewall", f[1], "forwarding")
+			fw:set("firewall", f[1], "src", f[2])
+			fw:set("firewall", f[1], "dest", f[3])
+		end
+	end
 	fw:commit("firewall")
 
 	os.execute("/etc/init.d/firewall restart")

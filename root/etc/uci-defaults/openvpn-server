@@ -3,6 +3,15 @@
 openvpn_port="$(uci -q get openvpn-server.myvpn.port)"
 [ -z "$openvpn_port" ] && openvpn_port=1194
 
+# 迁移/清理历史遗留的 vpn zone：仅当确属本包创建（type=zone && name=vpn && device=tun0）才删除。
+# 不得删除 ipsec-vpnd 等应用占用的 firewall.vpn（forwarding）section，否则会误删他人转发规则。
+if [ "$(uci -q get firewall.vpn)" = "zone" ] \
+	&& [ "$(uci -q get firewall.vpn.name)" = "vpn" ] \
+	&& [ "$(uci -q get firewall.vpn.device)" = "tun0" ]; then
+	uci -q delete firewall.vpn
+	uci -q commit firewall
+fi
+
 uci -q batch <<-EOF >/dev/null
 	delete network.vpn0
 	commit network
@@ -13,25 +22,25 @@ uci -q batch <<-EOF >/dev/null
 	set firewall.openvpn.src='wan'
 	set firewall.openvpn.proto='tcp udp'
 	set firewall.openvpn.dest_port="$openvpn_port"
-	delete firewall.vpn
-	set firewall.vpn=zone
-	set firewall.vpn.name='vpn'
-	set firewall.vpn.input='ACCEPT'
-	set firewall.vpn.forward='ACCEPT'
-	set firewall.vpn.output='ACCEPT'
-	add_list firewall.vpn.device='tun0'
+	delete firewall.openvpn_zone
+	set firewall.openvpn_zone=zone
+	set firewall.openvpn_zone.name='openvpn'
+	set firewall.openvpn_zone.input='ACCEPT'
+	set firewall.openvpn_zone.forward='ACCEPT'
+	set firewall.openvpn_zone.output='ACCEPT'
+	add_list firewall.openvpn_zone.device='tun0'
 	delete firewall.vpntowan
 	set firewall.vpntowan=forwarding
-	set firewall.vpntowan.src='vpn'
+	set firewall.vpntowan.src='openvpn'
 	set firewall.vpntowan.dest='wan'
 	delete firewall.vpntolan
 	set firewall.vpntolan=forwarding
-	set firewall.vpntolan.src='vpn'
+	set firewall.vpntolan.src='openvpn'
 	set firewall.vpntolan.dest='lan'
 	delete firewall.lantovpn
 	set firewall.lantovpn=forwarding
 	set firewall.lantovpn.src='lan'
-	set firewall.lantovpn.dest='vpn'
+	set firewall.lantovpn.dest='openvpn'
 	commit firewall
 EOF
 

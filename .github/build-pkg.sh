@@ -127,12 +127,20 @@ default_prerm
 	# 卸载清理：删除本包创建的防火墙规则/zone，恢复系统 openvpn 服务
 	uci -q batch <<-EOF
 		delete firewall.openvpn
-		delete firewall.vpn
+		delete firewall.openvpn_zone
 		delete firewall.vpntowan
 		delete firewall.vpntolan
 		delete firewall.lantovpn
 		commit firewall
 	EOF
+	# 清理旧版本遗留的 vpn zone（type=zone && name=vpn && device=tun0）
+	# 不得误删 ipsec-vpnd 等应用创建的 firewall.vpn（forwarding）section
+	if [ "$(uci -q get firewall.vpn)" = "zone" ] \
+		&& [ "$(uci -q get firewall.vpn.name)" = "vpn" ] \
+		&& [ "$(uci -q get firewall.vpn.device)" = "tun0" ]; then
+		uci -q delete firewall.vpn
+		uci -q commit firewall
+	fi
 	/etc/init.d/firewall restart 2>/dev/null
 	[ -x /etc/init.d/openvpn ] && /etc/init.d/openvpn enable 2>/dev/null
 	exit 0
@@ -188,12 +196,20 @@ default_prerm $0 $@
 	# 卸载清理：删除本包创建的防火墙规则/zone，恢复系统 openvpn 服务
 	uci -q batch <<-EOF
 		delete firewall.openvpn
-		delete firewall.vpn
+		delete firewall.openvpn_zone
 		delete firewall.vpntowan
 		delete firewall.vpntolan
 		delete firewall.lantovpn
 		commit firewall
 	EOF
+	# 清理旧版本遗留的 vpn zone（type=zone && name=vpn && device=tun0）
+	# 不得误删 ipsec-vpnd 等应用创建的 firewall.vpn（forwarding）section
+	if [ "$(uci -q get firewall.vpn)" = "zone" ] \
+		&& [ "$(uci -q get firewall.vpn.name)" = "vpn" ] \
+		&& [ "$(uci -q get firewall.vpn.device)" = "tun0" ]; then
+		uci -q delete firewall.vpn
+		uci -q commit firewall
+	fi
 	/etc/init.d/firewall restart 2>/dev/null
 	[ -x /etc/init.d/openvpn ] && /etc/init.d/openvpn enable 2>/dev/null
 	exit 0
