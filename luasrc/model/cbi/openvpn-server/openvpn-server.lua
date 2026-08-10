@@ -285,9 +285,8 @@ function mp.on_after_commit(self)
 		end
 	end
 	fw:commit("firewall")
-
-	os.execute("/etc/init.d/firewall restart")
-	os.execute("/etc/init.d/openvpn-server restart")
+	-- 不显式 restart：两个 init 脚本均注册了 procd reload trigger，
+	-- uci commit 后由 procd 按需自动重载；手动 restart 会在服务被禁用时误拉起
 end
 
 return mp
