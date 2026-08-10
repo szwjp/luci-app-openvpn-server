@@ -185,13 +185,13 @@ else
 [ "${IPKG_NO_SCRIPT}" = "1" ] && exit 0
 [ -s ${IPKG_INSTROOT}/lib/functions.sh ] || exit 0
 . ${IPKG_INSTROOT}/lib/functions.sh
-default_postinst $0 $@' > "$TEMP_PKG_DIR/CONTROL/postinst"
+default_postinst $0 "$@"' > "$TEMP_PKG_DIR/CONTROL/postinst"
 	chmod 0755 "$TEMP_PKG_DIR/CONTROL/postinst"
 
 	echo -e '#!/bin/sh
 [ -s ${IPKG_INSTROOT}/lib/functions.sh ] || exit 0
 . ${IPKG_INSTROOT}/lib/functions.sh
-default_prerm $0 $@
+default_prerm $0 "$@"
 [ -n "${IPKG_INSTROOT}" ] || {
 	# 卸载清理：删除本包创建的防火墙规则/zone，恢复系统 openvpn 服务
 	uci -q batch <<-EOF

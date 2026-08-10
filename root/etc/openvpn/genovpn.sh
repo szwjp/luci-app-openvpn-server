@@ -12,10 +12,10 @@ done
 
 [ -n "$section" ] || { echo "No enabled openvpn-server section found" >&2; exit 1; }
 
-ddns=$(uci get openvpn-server.$section.ddns)
-port=$(uci get openvpn-server.$section.port)
-proto=$(uci get openvpn-server.$section.proto | sed -e 's/server/client/g')
-dev=$(uci get openvpn-server.$section.dev)
+ddns=$(uci -q get openvpn-server.$section.ddns)
+port=$(uci -q get openvpn-server.$section.port)
+proto=$(uci -q get openvpn-server.$section.proto | sed -e 's/server/client/g')
+dev=$(uci -q get openvpn-server.$section.dev)
 
 [ -n "$ddns" ] || { echo "openvpn-server.$section.ddns is empty" >&2; exit 1; }
 
