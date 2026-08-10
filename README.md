@@ -30,7 +30,7 @@ ERROR: luci-app-openvpn-server-3.0-r0: trying to overwrite
 - `luasrc/controller/openvpn-server.lua`、`luasrc/model/cbi/openvpn-server/openvpn-server.lua`
 - `root/etc/openvpn/genovpn.sh`、`renewcert.sh`、`root/usr/share/rpcd/acl.d/luci-app-openvpn-server.json`
 
-CI 的 `clash-check` job 会拉取真实的 `openvpn-openssl`/`openvpn-easy-rsa` 包，与本包做文件归属交集校验，持续保证封装不冲突。防火墙规则逻辑（uci-defaults 迁移、与 ipsec-vpnd 的 section 隔离）有离线测试：`sh .github/tests/test-uci-defaults.sh`（fake uci 模拟，无需 OpenWrt 环境），CI 构建前自动执行。
+CI 的 `clash-check` job 会拉取真实的 `openvpn-openssl`/`openvpn-easy-rsa` 包，与本包做文件归属交集校验，持续保证封装不冲突。防火墙规则逻辑（与 ipsec-vpnd 的 section 隔离）有离线测试：`sh .github/tests/test-uci-defaults.sh`（fake uci 模拟，无需 OpenWrt 环境），CI 构建前自动执行。
 
 ## v3.2 行为变更
 

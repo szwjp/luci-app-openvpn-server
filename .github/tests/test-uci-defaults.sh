@@ -30,15 +30,6 @@ assert_eq() { # $1=描述 $2=期望 $3=实际
 	fi
 }
 
-assert_absent() { # $1=描述 $2=状态文件 $3=key
-	if grep -q "^$3=" "$2"; then
-		echo "  FAIL: $1（$3 仍存在）"
-		FAILED=1
-	else
-		echo "  PASS: $1"
-	fi
-}
-
 run_defaults() { # $1=场景名；其余为初始状态行，回显状态文件路径
 	name="$1"
 	shift
@@ -61,20 +52,6 @@ assert_eq "vpntolan.dest" "lan" "$(state_get "$state" firewall.vpntolan.dest)"
 assert_eq "lantovpn.src" "lan" "$(state_get "$state" firewall.lantovpn.src)"
 assert_eq "lantovpn.dest" "openvpn" "$(state_get "$state" firewall.lantovpn.dest)"
 assert_eq "放行规则类型" "rule" "$(state_get "$state" firewall.openvpn)"
-
-echo "== 场景 B：旧版遗留 vpn zone（应迁移删除，新建 openvpn_zone）=="
-state=$(run_defaults B \
-	"firewall.vpn=zone" "firewall.vpn.name=vpn" "firewall.vpn.device=tun0" "firewall.vpn.input=ACCEPT")
-assert_absent "旧 zone 已删" "$state" firewall.vpn
-assert_eq "新 zone 已建" "zone" "$(state_get "$state" firewall.openvpn_zone)"
-
-echo "== 场景 C：ipsec-vpnd 占用 firewall.vpn（forwarding，不得误删）=="
-state=$(run_defaults C \
-	"firewall.vpn=forwarding" "firewall.vpn.name=vpn" "firewall.vpn.src=VPN" "firewall.vpn.dest=wan" \
-	"firewall.VPN=zone" "firewall.VPN.name=VPN")
-assert_eq "ipsec forwarding 保留" "forwarding" "$(state_get "$state" firewall.vpn)"
-assert_eq "ipsec src 保留" "VPN" "$(state_get "$state" firewall.vpn.src)"
-assert_eq "ipsec dest 保留" "wan" "$(state_get "$state" firewall.vpn.dest)"
 
 echo "== 场景 D：旧版规则残留（src/dest 指向已废弃的 vpn zone，应重建为 openvpn）=="
 state=$(run_defaults D \

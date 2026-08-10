@@ -3,15 +3,6 @@
 openvpn_port="$(uci -q get openvpn-server.myvpn.port)"
 [ -z "$openvpn_port" ] && openvpn_port=1194
 
-# 迁移/清理历史遗留的 vpn zone：仅当确属本包创建（type=zone && name=vpn && device=tun0）才删除。
-# 不得删除 ipsec-vpnd 等应用占用的 firewall.vpn（forwarding）section，否则会误删他人转发规则。
-if [ "$(uci -q get firewall.vpn)" = "zone" ] \
-	&& [ "$(uci -q get firewall.vpn.name)" = "vpn" ] \
-	&& [ "$(uci -q get firewall.vpn.device)" = "tun0" ]; then
-	uci -q delete firewall.vpn
-	uci -q commit firewall
-fi
-
 uci -q batch <<-EOF >/dev/null
 	delete network.vpn0
 	commit network
