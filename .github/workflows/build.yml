@@ -91,21 +91,25 @@ jobs:
             .github/*.apk
             .github/*.ipk
 
-      - name: Cleanup old release assets
+      - name: Cleanup old release and tag
         if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -o pipefail
+          # 删除旧的 release（连同其 assets）与 tag，让 publish 步骤在当次 commit 上重新创建 tag，
+          # 从而刷新 release 时间戳，并避免 action-gh-release 因 tag 已存在而不推进到最新提交。
+          # 首次运行（或 release/tag 不存在）时 curl 404 属预期，用 `|| RELEASE_ID=""` 兜底。
           RELEASE_ID=$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/tags/luci-app-openvpn-server" | jq -r '.id') || true
-          if [ "$RELEASE_ID" != "null" ] && [ -n "$RELEASE_ID" ]; then
-            ASSETS=$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets" | jq -r '.[].id')
-            for asset_id in $ASSETS; do
-              curl -fsS -X DELETE -H "Authorization: Bearer $GH_TOKEN" \
-                "https://api.github.com/repos/${{ github.repository }}/releases/assets/$asset_id" || true
-            done
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/luci-app-openvpn-server" | jq -r '.id' 2>/dev/null) || RELEASE_ID=""
+          if [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ]; then
+            curl -fsS -X DELETE -H "Authorization: Bearer $GH_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID" \
+              || echo "::warning::删除旧 release $RELEASE_ID 失败，继续"
           fi
+          curl -fsS -X DELETE -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/luci-app-openvpn-server" \
+            || echo "::warning::tag luci-app-openvpn-server 不存在或删除失败，继续"
 
       - name: Publish to Latest Build Release
         if: github.event_name != 'pull_request'
