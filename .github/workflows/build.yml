@@ -71,6 +71,7 @@ jobs:
       - name: Validate syntax and firewall logic
         run: |
           sh -n root/etc/uci-defaults/openvpn-server
+          sh -n root/etc/openvpn/genovpn.sh
           bash -n .github/build-pkg.sh
           luac5.1 -p luasrc/model/cbi/openvpn-server/openvpn-server.lua
           luac5.1 -p luasrc/controller/openvpn-server.lua

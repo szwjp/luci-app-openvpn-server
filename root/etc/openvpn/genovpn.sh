@@ -43,4 +43,7 @@ echo '</cert>' >> /tmp/my.ovpn
 echo '<key>' >> /tmp/my.ovpn
 cat /etc/openvpn/pki/client1.key >> /tmp/my.ovpn
 echo '</key>' >> /tmp/my.ovpn
-[ -f /etc/openvpn-addon.conf ] && cat /etc/openvpn-addon.conf >> /tmp/my.ovpn
+# 追加用户自定义代码；压缩项一律剔除：客户端启用压缩会与服务端（已禁用压缩）
+# 的帧格式不一致，导致数据通道包被静默丢弃（能登录但访问不了任何东西）。
+# 注意脚本开了 set -e，grep 过滤后可能返回 1，必须 || true 兜底。
+[ -f /etc/openvpn-addon.conf ] && grep -v -E '^[[:space:]]*(comp-lzo|compress)' /etc/openvpn-addon.conf >> /tmp/my.ovpn || true
