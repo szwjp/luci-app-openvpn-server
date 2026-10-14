@@ -65,11 +65,6 @@ duplicate_cn.description = translate("Allow multiple clients to connect using th
 
 client_to_client = s:taboption("control", Flag, "client_to_client", translate("Allow client-to-client traffic"))
 
-comp_lzo = s:taboption("control", ListValue, "comp_lzo", translate("Enable LZO compression"))
-comp_lzo:value("yes", "yes")
-comp_lzo:value("no", "no")
-comp_lzo:value("adaptive", "adaptive")
-
 keepalive = s:taboption("control", Value, "keepalive", translate("Keepalive"))
 keepalive.datatype = "string"
 keepalive.description = translate("Helper directive to simplify the expression of ping and ping-restart")

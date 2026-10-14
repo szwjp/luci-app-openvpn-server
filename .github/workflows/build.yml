@@ -75,6 +75,7 @@ jobs:
           luac5.1 -p luasrc/model/cbi/openvpn-server/openvpn-server.lua
           luac5.1 -p luasrc/controller/openvpn-server.lua
           sh .github/tests/test-uci-defaults.sh
+          sh .github/tests/test-init-conf.sh
 
       - name: Build packages (apk + ipk)
         run: |

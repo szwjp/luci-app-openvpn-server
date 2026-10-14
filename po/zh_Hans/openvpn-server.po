@@ -133,9 +133,6 @@ msgstr "允许多个客户端使用同一证书连接"
 msgid "Allow client-to-client traffic"
 msgstr "允许客户端互通"
 
-msgid "Enable LZO compression"
-msgstr "是否启用 LZO 压缩"
-
 msgid "Keepalive"
 msgstr "保活"
 

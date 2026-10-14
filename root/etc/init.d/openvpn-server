@@ -28,13 +28,20 @@ emit_bool() {
 	echo "$opt" >> "$CONF"
 }
 
+# 压缩相关 push 一律丢弃（含旧配置残留的 comp-lzo / compress）。
+# 服务端只要带上压缩项，就会对数据包使用 lzo 或 stub 帧；而现代客户端不启用
+# 任何压缩帧（OpenVPN Connect 3.x 不声明压缩能力，OpenVPN 2.6 仅支持 stub），
+# 两端帧格式不一致会让数据通道包被静默丢弃：客户端能登录，但什么都访问不了。
 push_line() {
+	case "$1" in
+	comp-lzo*|compress*) return 0 ;;
+	esac
 	echo "push \"$1\"" >> "$CONF"
 }
 
 server_instance() {
 	local s="$1"
-	local enabled proto port dev topology server comp_lzo
+	local enabled proto port dev topology server
 	local ca dh cert key persist_key persist_tun user group
 	local max_clients keepalive verb status log
 	local duplicate_cn client_to_client redirect_gateway
@@ -47,7 +54,6 @@ server_instance() {
 	config_get dev "$s" dev
 	config_get topology "$s" topology
 	config_get server "$s" server
-	config_get comp_lzo "$s" comp_lzo
 	config_get ca "$s" ca
 	config_get dh "$s" dh
 	config_get cert "$s" cert
@@ -74,7 +80,8 @@ server_instance() {
 	emit dev "$dev"
 	emit topology "$topology"
 	emit server "$server"
-	emit comp_lzo "$comp_lzo"
+	# 刻意不输出 comp_lzo/compress（也不读取该选项）：任何压缩项都会让服务端
+	# 使用 lzo/stub 帧，与现代客户端不匹配，详见 push_line 注释。
 	emit ca "$ca"
 	emit dh "$dh"
 	emit cert "$cert"
