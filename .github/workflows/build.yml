@@ -209,10 +209,13 @@ jobs:
           set -eo pipefail
           mkdir -p deps && cd deps
           for p in openvpn-openssl openvpn-easy-rsa; do
-            f="$(curl -fsSL "${{ env.DEPS_BASE_URL }}/" | grep -oE "${p}-[0-9][^"<>]*\.apk" | head -n1)"
+            # 注意：正则里的 " 必须写成 \"。直接写 [^"<>] 会提前闭合外层双引号，
+            # 报 "syntax error near unexpected token `done'"。
+            pattern="${p}-[0-9][^\"<>]*\.apk"
+            f="$(curl -fsSL "${DEPS_BASE_URL}/" | grep -oE "$pattern" | head -n1)"
             [ -n "$f" ] || { echo "未在仓库找到 $p"; exit 1; }
             echo "fetching $f"
-            curl -fsSLO "${{ env.DEPS_BASE_URL }}/$f"
+            curl -fsSLO "${DEPS_BASE_URL}/$f"
             mv "$f" "${p}.apk"
           done
           ls -l
