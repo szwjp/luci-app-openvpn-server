@@ -19,8 +19,10 @@ env:
   APK_TOOLS_REF: 'b5a31c0d865342ad80be10d68f1bb3d3ad9b0866'
   # ipkg-build 固定到具体 commit，避免 master 前进导致构建产物漂移
   IPKG_BUILD_REF: '7b46f9593eb92c80541dde12b6e49f1761f9c7be'
-  # 官方包仓库（immortalwrt-ref 06：只有 targets/<board>/<subtarget>/packages 这条路径有效）
-  DEPS_BASE_URL: 'https://mirrors.ustc.edu.cn/immortalwrt/releases/25.12.2/targets/x86/64/packages'
+  # 官方包仓库。必须用 downloads.immortalwrt.org：USTC 的 immortalwrt 镜像目录
+  # 里没有 openvpn-openssl / openvpn-easy-rsa（只有 openvpn-mbedtls），
+  # clash-check 会因找不到依赖包而失败。路径只取 packages/x86_64/packages 这一条。
+  DEPS_BASE_URL: 'https://downloads.immortalwrt.org/releases/25.12.2/packages/x86_64/packages'
 
 jobs:
   build:
@@ -111,22 +113,30 @@ jobs:
           set -eo pipefail
           VERSION="${{ steps.version.outputs.VERSION }}"
           RELEASE="${{ steps.version.outputs.RELEASE }}"
-          EXPECTED="luci-app-openvpn-server-${VERSION}-r${RELEASE}"
+          # apk v3 的版本串是 <version>-r<release>，ipkg-build 的是 <version>-<release>（无 r 前缀）
+          EXPECTED_APK="luci-app-openvpn-server-${VERSION}-r${RELEASE}"
+          EXPECTED_IPK="luci-app-openvpn-server-${VERSION}-${RELEASE}"
           for f in .github/luci-app-openvpn-server-*.apk .github/luci-app-openvpn-server-*.ipk; do
             [ -e "$f" ] || continue
-            case "$(basename "$f")" in
-              "$EXPECTED".apk|"$EXPECTED".ipk) ;;
-              *) echo "::error::产物名与 Makefile 版本不一致：$(basename "$f")（期望 $EXPECTED.*）"; exit 1 ;;
+            base="$(basename "$f")"
+            case "$base" in
+              "$EXPECTED_APK".apk) ;;
+              "$EXPECTED_IPK".ipk) ;;
+              *) echo "::error::产物名与 Makefile 版本不一致：$base（期望 $EXPECTED_APK.apk 或 $EXPECTED_IPK.ipk）"; exit 1 ;;
             esac
           done
+          I18N_APK="luci-i18n-openvpn-server-zh-cn-${VERSION}-r${RELEASE}"
+          I18N_IPK="luci-i18n-openvpn-server-zh-cn-${VERSION}-${RELEASE}"
           for f in .github/luci-i18n-openvpn-server-zh-cn-*.apk .github/luci-i18n-openvpn-server-zh-cn-*.ipk; do
             [ -e "$f" ] || continue
-            case "$(basename "$f")" in
-              *"${VERSION}-r${RELEASE}".apk|*"${VERSION}-r${RELEASE}".ipk) ;;
-              *) echo "::error::翻译包产物名与 Makefile 版本不一致：$(basename "$f")"; exit 1 ;;
+            base="$(basename "$f")"
+            case "$base" in
+              "$I18N_APK".apk) ;;
+              "$I18N_IPK".ipk) ;;
+              *) echo "::error::翻译包产物名与 Makefile 版本不一致：$base（期望 $I18N_APK.apk 或 $I18N_IPK.ipk）"; exit 1 ;;
             esac
           done
-          echo "产物名与版本一致：$EXPECTED"
+          echo "产物名与版本一致：apk=$EXPECTED_APK apk / ipk=$EXPECTED_IPK ipk"
 
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4
