@@ -32,7 +32,7 @@ shift
 case "$cmd" in
 get)
 	key="$1"
-	v=$(grep "^$key=" "$STATE" | tail -1 | sed 's/^[^=]*=//' | tr -d "'")
+	v=$(grep "^$key=" "$STATE" | tail -1 | sed 's/^[^=]*=//' | tr -d "'\"")
 	[ -n "$v" ] && echo "$v"
 	;;
 delete)
@@ -53,14 +53,14 @@ batch)
 		set)
 			spec="$2"
 			key="${spec%%=*}"
-			val=$(printf '%s' "${spec#*=}" | tr -d "'")
+			val=$(printf '%s' "${spec#*=}" | tr -d "'\"")
 			drop_self "$key"
 			printf '%s=%s\n' "$key" "$val" >> "$STATE"
 			;;
 		add_list)
 			spec="$2"
 			key="${spec%%=*}"
-			val=$(printf '%s' "${spec#*=}" | tr -d "'")
+			val=$(printf '%s' "${spec#*=}" | tr -d "'\"")
 			printf '%s=%s\n' "$key" "$val" >> "$STATE"
 			;;
 		commit) : ;;

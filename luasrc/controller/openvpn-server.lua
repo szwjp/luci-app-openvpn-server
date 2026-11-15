@@ -12,14 +12,32 @@ function index()
 	page = entry({"admin", "vpn", "openvpn-server"}, cbi("openvpn-server/openvpn-server"), _("OpenVPN Server"), 80)
 	page.dependent = false
 	page.acl_depends = { "luci-app-openvpn-server" }
-	entry({"admin", "vpn", "openvpn-server", "status"}, call("act_status")).leaf = true
-	entry({"admin", "vpn", "openvpn-server", "download"}, call("act_download")).leaf = true
-	entry({"admin", "vpn", "openvpn-server", "renew"}, call("act_renew")).leaf = true
+
+	-- status / download / renew 都必须挂同一个 ACL 组。
+	-- download 会返回含客户端私钥的 .ovpn，renew 会重建整棵 PKI，
+	-- 不能只靠"用户已登录"就放行。
+	local acl = { "luci-app-openvpn-server" }
+
+	local e = entry({"admin", "vpn", "openvpn-server", "status"}, call("act_status"))
+	e.leaf = true
+	e.acl_depends = acl
+
+	e = entry({"admin", "vpn", "openvpn-server", "download"}, call("act_download"))
+	e.leaf = true
+	e.acl_depends = acl
+
+	-- renew 是破坏性操作：用 post() 注册，dispatcher 会强制
+	-- REQUEST_METHOD=POST 且 token 匹配（CSRF 防护在服务端生效，
+	-- 模板里带 token 只是配合，不能替代服务端校验）。
+	e = entry({"admin", "vpn", "openvpn-server", "renew"}, post("act_renew"))
+	e.leaf = true
+	e.acl_depends = acl
 end
 
 function act_status()
 	local e = {}
-	e.running = luci.sys.call("pgrep -f '[o]penvpn-server' >/dev/null") == 0
+	-- 按运行时配置文件路径判定进程存活，不依赖 --syslog 字符串
+	e.running = luci.sys.call("pgrep -f '/var/etc/openvpn-server-.*[.]conf' >/dev/null") == 0
 	luci.http.prepare_content("application/json")
 	luci.http.write_json(e)
 end
@@ -46,10 +64,15 @@ function act_download()
 	end
 	f:close()
 	luci.http.close()
+
+	-- 该文件内含客户端私钥，读完立即删除，避免留在 /tmp 里
+	os.remove("/tmp/my.ovpn")
 end
 
 function act_renew()
-	-- 仅接受带 CSRF token 的 POST（模板中已注入 token）
+	-- 破坏性操作：重建整棵 PKI，所有已分发的客户端证书立即作废。
+	-- CSRF 防护由 dispatcher 的 post() 语义强制（POST + token），
+	-- 此处不再自行校验 token。
 	luci.sys.call("sh /etc/openvpn/renewcert.sh >/dev/null 2>&1 &")
 	luci.http.redirect(luci.dispatcher.build_url("admin/vpn/openvpn-server"))
 end

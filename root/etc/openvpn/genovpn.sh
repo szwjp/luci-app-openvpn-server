@@ -4,6 +4,9 @@
 
 set -e
 
+# 生成的 .ovpn 内含客户端私钥（client1.key），必须只有 root 可读
+umask 077
+
 section=""
 for s in $(uci -q show openvpn-server 2>/dev/null | sed -n "s/^openvpn-server\.\([^.]*\)\.enabled='1'/\1/p"); do
 	section="$s"

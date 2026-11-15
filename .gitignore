@@ -1,0 +1,3 @@
+# CI 构建产物（build-pkg.sh 输出到 .github/ 下）
+.github/*.apk
+.github/*.ipk

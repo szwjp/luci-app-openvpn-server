@@ -53,6 +53,12 @@ assert_eq "lantovpn.src" "lan" "$(state_get "$state" firewall.lantovpn.src)"
 assert_eq "lantovpn.dest" "openvpn" "$(state_get "$state" firewall.lantovpn.dest)"
 assert_eq "放行规则类型" "rule" "$(state_get "$state" firewall.openvpn)"
 
+echo "== 场景 E：dev=tap 时 zone device 应为 tap0（不能写死 tun0）=="
+state=$(run_defaults E \
+	"openvpn-server.myvpn.dev=tap" \
+	"openvpn-server.myvpn.port=1194")
+assert_eq "zone device 随 dev 变化" "tap0" "$(state_get "$state" firewall.openvpn_zone.device)"
+
 echo "== 场景 D：旧版规则残留（src/dest 指向已废弃的 vpn zone，应重建为 openvpn）=="
 state=$(run_defaults D \
 	"firewall.vpntowan=forwarding" "firewall.vpntowan.src=vpn" "firewall.vpntowan.dest=wan" \

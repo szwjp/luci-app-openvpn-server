@@ -3,6 +3,11 @@
 openvpn_port="$(uci -q get openvpn-server.myvpn.port)"
 [ -z "$openvpn_port" ] && openvpn_port=1194
 
+# 防火墙 zone 的设备名随 openvpn 的 dev 变化：dev=tun → tun0，dev=tap → tap0
+openvpn_dev="$(uci -q get openvpn-server.myvpn.dev)"
+[ -z "$openvpn_dev" ] && openvpn_dev=tun
+openvpn_zone_dev="${openvpn_dev}0"
+
 uci -q batch <<-EOF >/dev/null
 	delete network.vpn0
 	commit network
@@ -19,7 +24,7 @@ uci -q batch <<-EOF >/dev/null
 	set firewall.openvpn_zone.input='ACCEPT'
 	set firewall.openvpn_zone.forward='ACCEPT'
 	set firewall.openvpn_zone.output='ACCEPT'
-	add_list firewall.openvpn_zone.device='tun0'
+	add_list firewall.openvpn_zone.device="$openvpn_zone_dev"
 	delete firewall.vpntowan
 	set firewall.vpntowan=forwarding
 	set firewall.vpntowan.src='openvpn'

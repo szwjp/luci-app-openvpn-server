@@ -89,6 +89,12 @@ assert_present "普通 push 保留（route）" "$CONF" 'push "route 192.168.1.0 
 assert_present "普通 push 保留（redirect-gateway）" "$CONF" 'push "redirect-gateway def1 bypass-dhcp"'
 assert_present "基础参数正常输出" "$CONF" "proto tcp-server"
 assert_present "证书参数正常输出" "$CONF" "dh /etc/openvpn/pki/dh.pem"
+# 回归防护：服务端模式下顶层 redirect-gateway 会让 openvpn usage error 退出
+# （options.c: "--redirect-gateway cannot be used with --mode server"）。
+# 上面 stub 里 UCI 的 redirect_gateway=def1 仍在，init 必须无视它。
+assert_absent "顶层 redirect-gateway 不输出" "$CONF" "^redirect-gateway"
+assert_present "push 形式的 redirect-gateway 保留" "$CONF" 'push "redirect-gateway def1 bypass-dhcp"'
+assert_present "客户端地址池持久化" "$CONF" "ifconfig-pool-persist"
 
 if [ "$FAILED" = "1" ]; then
 	echo "结果：存在失败项"

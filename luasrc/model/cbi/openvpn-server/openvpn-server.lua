@@ -74,11 +74,12 @@ topology:value("subnet", "subnet")
 topology:value("net30", "net30")
 topology:value("p2p", "p2p")
 
-redirect_gateway = s:taboption("control", ListValue, "redirect_gateway", translate("Automatically redirect default route"))
-redirect_gateway:value("", "-- remove --")
-redirect_gateway:value("local", "local")
-redirect_gateway:value("def1", "def1")
-redirect_gateway:value("local def1", "local def1")
+-- 注意：这里不再提供 "redirect-gateway" 选项。
+-- 服务端模式下 openvpn 禁止顶层 --redirect-gateway
+-- （src/openvpn/options.c: "--redirect-gateway cannot be used with --mode server
+--   (however --push \"redirect-gateway\" is fine)"），
+-- 选了就会让 openvpn 直接 usage error 退出、VPN 起不来。
+-- 服务端要下发默认路由，只能用下面 push 列表里的 push "redirect-gateway ..."。
 
 persist_key = s:taboption("control", Flag, "persist_key", translate("Persist key"))
 persist_tun = s:taboption("control", Flag, "persist_tun", translate("Persist tun"))
@@ -203,16 +204,22 @@ end
 
 function mp.on_after_commit(self)
 	local port = "1194"
+	local dev_kind = "tun"
 	local found = false
 	local fw = UCI.cursor()
 
-	-- 取第一个启用实例的端口，不再硬编码 section 名
+	-- 取第一个启用实例的端口与设备类型，不再硬编码 section 名
 	fw:foreach("openvpn-server", "openvpn", function(s)
 		if not found and s.enabled == "1" then
 			found = true
 			port = s.port or "1194"
+			dev_kind = s.dev or "tun"
 		end
 	end)
+
+	-- 防火墙 zone 里的设备名随 openvpn 的 dev 变化：
+	-- dev=tun → tun0，dev=tap → tap0。写死 tun0 会在换成 tap 时让 zone 失效。
+	local zone_dev = dev_kind .. "0"
 
 	-- 规则存在时仅同步端口（保留用户自定义）；不存在时创建基础放行规则
 	if fw:get("firewall", "openvpn") then
@@ -243,16 +250,27 @@ function mp.on_after_commit(self)
 	if fw:get("firewall", "openvpn_zone", "name") ~= "openvpn" then
 		fw:set("firewall", "openvpn_zone", "name", "openvpn")
 	end
-	-- device 列表必须包含 tun0，缺失则补（zone 被重建或改动后自愈）
+	-- device 列表必须包含 zone_dev，缺失则补（zone 被重建或改动后自愈）。
+	-- 注意：luci.model.uci 的 cursor 没有 add_list 方法，只有 set_list；
+	-- 调用不存在的 API 会抛 Lua 异常，导致整次保存失败。
 	local devs = fw:get_list("firewall", "openvpn_zone", "device")
-	local has_tun0 = false
+	local has_dev = false
 	if devs then
 		for _, dev in ipairs(devs) do
-			if dev == "tun0" then has_tun0 = true end
+			if dev == zone_dev then has_dev = true end
 		end
 	end
-	if not has_tun0 then
-		fw:add_list("firewall", "openvpn_zone", "device", "tun0")
+	if not has_dev then
+		local new_devs = {}
+		if devs then
+			for _, dev in ipairs(devs) do
+				if type(dev) == "string" and dev ~= "" then
+					new_devs[#new_devs + 1] = dev
+				end
+			end
+		end
+		new_devs[#new_devs + 1] = zone_dev
+		fw:set_list("firewall", "openvpn_zone", "device", new_devs)
 	end
 
 	local forwards = {

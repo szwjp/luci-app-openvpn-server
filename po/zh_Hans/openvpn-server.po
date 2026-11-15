@@ -142,21 +142,6 @@ msgstr "用于简化 ping 与 ping-restart 表达方式的辅助指令"
 msgid "Topology"
 msgstr "拓扑模式"
 
-msgid "Automatically redirect default route"
-msgstr "自动重定向默认路由"
-
-msgid "-- remove --"
-msgstr "-- 删除 --"
-
-msgid "local"
-msgstr "本地"
-
-msgid "def1"
-msgstr "def1"
-
-msgid "local def1"
-msgstr "本地 def1"
-
 msgid "Persist key"
 msgstr "保持密钥"
 

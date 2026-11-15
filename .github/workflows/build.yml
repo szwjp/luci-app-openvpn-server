@@ -14,6 +14,14 @@ concurrency:
 permissions:
   contents: write
 
+env:
+  # ★ 与 ImmortalWrt master 的 apk 版本对齐，勿随意升级
+  APK_TOOLS_REF: 'b5a31c0d865342ad80be10d68f1bb3d3ad9b0866'
+  # ipkg-build 固定到具体 commit，避免 master 前进导致构建产物漂移
+  IPKG_BUILD_REF: '7b46f9593eb92c80541dde12b6e49f1761f9c7be'
+  # 官方包仓库（immortalwrt-ref 06：只有 targets/<board>/<subtarget>/packages 这条路径有效）
+  DEPS_BASE_URL: 'https://mirrors.ustc.edu.cn/immortalwrt/releases/25.12.2/targets/x86/64/packages'
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -27,7 +35,7 @@ jobs:
           repository: 'alpinelinux/apk-tools'
           path: 'apk-tools'
           fetch-depth: 0
-          ref: 'b5a31c0d865342ad80be10d68f1bb3d3ad9b0866'
+          ref: ${{ env.APK_TOOLS_REF }}
 
       - name: Checkout po2lmo
         uses: actions/checkout@v4
@@ -65,24 +73,60 @@ jobs:
           sudo -E install -m0755 -s po2lmo /usr/local/bin/po2lmo
           popd
 
-          curl -fLO "https://raw.githubusercontent.com/openwrt/openwrt/master/scripts/ipkg-build"
+          curl -fLO "https://raw.githubusercontent.com/openwrt/openwrt/${{ env.IPKG_BUILD_REF }}/scripts/ipkg-build"
           sudo install -m0755 ipkg-build /usr/local/bin/ipkg-build
 
       - name: Validate syntax and firewall logic
         run: |
           sh -n root/etc/uci-defaults/openvpn-server
           sh -n root/etc/openvpn/genovpn.sh
+          sh -n root/etc/openvpn/renewcert.sh
+          sh -n root/etc/init.d/openvpn-server
           bash -n .github/build-pkg.sh
           luac5.1 -p luasrc/model/cbi/openvpn-server/openvpn-server.lua
           luac5.1 -p luasrc/controller/openvpn-server.lua
           sh .github/tests/test-uci-defaults.sh
           sh .github/tests/test-init-conf.sh
+          sh .github/tests/test-luci-api.sh
+
+      - name: Verify version consistency
+        id: version
+        run: |
+          set -eo pipefail
+          VERSION="$(awk -F':=' '/^PKG_VERSION:=/{print $2}' Makefile | xargs)"
+          RELEASE="$(awk -F':=' '/^PKG_RELEASE:=/{print $2}' Makefile | xargs)"
+          [ -n "$VERSION" ] || { echo "::error::Makefile 未定义 PKG_VERSION"; exit 1; }
+          [ -n "$RELEASE" ] || { echo "::error::Makefile 未定义 PKG_RELEASE"; exit 1; }
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "RELEASE=$RELEASE" >> "$GITHUB_OUTPUT"
 
       - name: Build packages (apk + ipk)
         run: |
           fakeroot bash .github/build-pkg.sh apk "${{ github.run_number }}"
           fakeroot bash .github/build-pkg.sh ipk "${{ github.run_number }}"
           ls -l .github/*.apk .github/*.ipk
+
+      - name: Verify artifact names match the version
+        run: |
+          set -eo pipefail
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          RELEASE="${{ steps.version.outputs.RELEASE }}"
+          EXPECTED="luci-app-openvpn-server-${VERSION}-r${RELEASE}"
+          for f in .github/luci-app-openvpn-server-*.apk .github/luci-app-openvpn-server-*.ipk; do
+            [ -e "$f" ] || continue
+            case "$(basename "$f")" in
+              "$EXPECTED".apk|"$EXPECTED".ipk) ;;
+              *) echo "::error::产物名与 Makefile 版本不一致：$(basename "$f")（期望 $EXPECTED.*）"; exit 1 ;;
+            esac
+          done
+          for f in .github/luci-i18n-openvpn-server-zh-cn-*.apk .github/luci-i18n-openvpn-server-zh-cn-*.ipk; do
+            [ -e "$f" ] || continue
+            case "$(basename "$f")" in
+              *"${VERSION}-r${RELEASE}".apk|*"${VERSION}-r${RELEASE}".ipk) ;;
+              *) echo "::error::翻译包产物名与 Makefile 版本不一致：$(basename "$f")"; exit 1 ;;
+            esac
+          done
+          echo "产物名与版本一致：$EXPECTED"
 
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4
@@ -93,32 +137,14 @@ jobs:
             .github/*.apk
             .github/*.ipk
 
-      - name: Cleanup old release and tag
-        if: github.event_name != 'pull_request'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -o pipefail
-          # 删除旧的 release（连同其 assets）与 tag，让 publish 步骤在当次 commit 上重新创建 tag，
-          # 从而刷新 release 时间戳，并避免 action-gh-release 因 tag 已存在而不推进到最新提交。
-          # 首次运行（或 release/tag 不存在）时 curl 404 属预期，用 `|| RELEASE_ID=""` 兜底。
-          RELEASE_ID=$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/tags/luci-app-openvpn-server" | jq -r '.id' 2>/dev/null) || RELEASE_ID=""
-          if [ -n "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ]; then
-            curl -fsS -X DELETE -H "Authorization: Bearer $GH_TOKEN" \
-              "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID" \
-              || echo "::warning::删除旧 release $RELEASE_ID 失败，继续"
-          fi
-          curl -fsS -X DELETE -H "Authorization: Bearer $GH_TOKEN" \
-            "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/luci-app-openvpn-server" \
-            || echo "::warning::tag luci-app-openvpn-server 不存在或删除失败，继续"
-
-      - name: Publish to Latest Build Release
+      - name: Publish release
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: luci-app-openvpn-server
-          name: OpenVPN Server Latest Build
+          # 每个版本一个 release，保留历史；同一版本重复构建只更新资产。
+          # tag 与 Makefile 的 PKG_VERSION/PKG_RELEASE 一一对应。
+          tag_name: v${{ steps.version.outputs.VERSION }}-r${{ steps.version.outputs.RELEASE }}
+          name: OpenVPN Server ${{ steps.version.outputs.VERSION }}-r${{ steps.version.outputs.RELEASE }}
           body: |
             Automatically built on ${{ github.run_id }}.
             Commit: ${{ github.sha }}
@@ -128,3 +154,99 @@ jobs:
             .github/luci-i18n-openvpn-server-zh-cn-*.apk
             .github/luci-i18n-openvpn-server-zh-cn-*.ipk
           token: ${{ github.token }}
+
+  # 文件归属冲突校验：本包与硬依赖 openvpn-openssl / openvpn-easy-rsa
+  # 不能拥有同名文件，否则封装固件镜像时会报 "trying to overwrite"。
+  # （历史上正是 /etc/config/openvpn 撞车导致本包无法封装。）
+  clash-check:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout apk-tools
+        uses: actions/checkout@v4
+        with:
+          repository: 'alpinelinux/apk-tools'
+          path: 'apk-tools'
+          fetch-depth: 0
+          ref: ${{ env.APK_TOOLS_REF }}
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential meson ninja-build libssl-dev lua5.1
+
+      - name: Build apk-tools
+        run: |
+          pushd apk-tools
+          meson setup build \
+            -Db_lto=true -Dcompressed-help=false -Ddocs=disabled -Dhelp=enabled \
+            -Dlua_version=5.1 -Ddefault_library=static -Durl_backend=wget \
+            -Dzstd=false -Dpython=disabled -Dtests=disabled -Dcrypto_backend=openssl
+          ninja -C build
+          sudo meson install -C build --strip
+          popd
+          apk --version
+
+      - name: Download package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: openvpn-server-packages
+          path: pkg
+
+      - name: Fetch dependency packages
+        run: |
+          set -eo pipefail
+          mkdir -p deps && cd deps
+          for p in openvpn-openssl openvpn-easy-rsa; do
+            f="$(curl -fsSL "${{ env.DEPS_BASE_URL }}/" | grep -oE "${p}-[0-9][^"<>]*\.apk" | head -n1)"
+            [ -n "$f" ] || { echo "未在仓库找到 $p"; exit 1; }
+            echo "fetching $f"
+            curl -fsSLO "${{ env.DEPS_BASE_URL }}/$f"
+            mv "$f" "${p}.apk"
+          done
+          ls -l
+
+      - name: Check file ownership clashes
+        run: |
+          set -eo pipefail
+          extract_list() {
+            local apkfile="$1" out="$2" dir
+            dir="$(mktemp -d)"
+            apk extract --allow-untrusted --no-chown --destination "$dir" "$apkfile"
+            ( cd "$dir" && find . \( -type f -o -type l \) ! -path './lib/apk/packages/*' \
+                | sed 's|^\./|/|' | sort ) > "$out"
+            rm -rf "$dir"
+          }
+
+          extract_list "$(ls pkg/luci-app-openvpn-server-*.apk)" ours-app.txt
+          extract_list "$(ls pkg/luci-i18n-openvpn-server-zh-cn-*.apk)" ours-i18n.txt
+          extract_list deps/openvpn-openssl.apk dep-openssl.txt
+          extract_list deps/openvpn-easy-rsa.apk dep-easyrsa.txt
+
+          echo "=== 本包文件数 ==="; wc -l ours-app.txt ours-i18n.txt
+          echo "=== 依赖文件数 ==="; wc -l dep-openssl.txt dep-easyrsa.txt
+
+          fail=0
+          for pair in "ours-app.txt dep-openssl.txt" "ours-app.txt dep-easyrsa.txt" "ours-i18n.txt dep-openssl.txt" "ours-i18n.txt dep-easyrsa.txt"; do
+            set -- $pair
+            echo "=== 冲突检查: $1 vs $2 ==="
+            if comm -12 "$1" "$2" | tee /dev/stderr | grep -q .; then
+              echo "ERROR: $1 与 $2 存在相同归属文件（封装镜像会冲突）"
+              fail=1
+            else
+              echo "OK: 无冲突"
+            fi
+          done
+          [ "$fail" -eq 0 ] || exit 1
+
+      - name: Upload clash-check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clash-check-report
+          path: |
+            ours-app.txt
+            ours-i18n.txt
+            dep-openssl.txt
+            dep-easyrsa.txt
