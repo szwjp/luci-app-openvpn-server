@@ -33,6 +33,11 @@ cp /etc/easy-rsa/pki/issued/client1.crt /etc/openvpn/pki/
 cp /etc/easy-rsa/pki/private/client1.key /etc/openvpn/pki/
 chmod 600 /etc/openvpn/pki/server.key /etc/openvpn/pki/client1.key
 
+# 重建 PKI 会作废所有客户端证书，顺便轮换 tls-crypt 密钥；
+# 旧客户端本来就必须重新下载 .ovpn，不会造成额外影响。
+( umask 077; openvpn --genkey secret /etc/openvpn/pki/tc.key )
+chmod 600 /etc/openvpn/pki/tc.key
+
 # Restart openvpn
 /etc/init.d/openvpn-server restart
 

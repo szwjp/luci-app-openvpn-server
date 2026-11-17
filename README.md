@@ -36,7 +36,8 @@ CI 的 `clash-check` job 会拉取真实的 `openvpn-openssl`/`openvpn-easy-rsa`
 
 ```sh
 sh .github/tests/test-uci-defaults.sh   # uci-defaults 防火墙规则（fake uci 模拟）
-sh .github/tests/test-init-conf.sh       # init 生成的运行时配置（压缩项等）
+sh .github/tests/test-init-conf.sh       # init 生成的运行时配置（压缩项/tls-crypt/MTU）
+sh .github/tests/test-genovpn.sh         # 客户端 .ovpn（tls-crypt/MTU/缺密钥失败）
 sh .github/tests/test-luci-api.sh        # LuCI 侧静态守卫（cursor API / CSRF / ACL）
 ```
 
@@ -65,6 +66,15 @@ sh .github/tests/test-luci-api.sh        # LuCI 侧静态守卫（cursor API / C
 - **翻译包依赖虚拟包名 `openvpn-server-luci`**（由主包 provides），避免 apk 把翻译包解析成官方仓库里的同名上游包（上游包与 `openvpn-openssl` 有文件归属冲突，装不上）。
 - **apk / ipk 两条安装路径行为对齐**：ipk 的 postinst 同样清 LuCI 缓存并 reload rpcd。
 - **`conffiles_static` 格式对齐官方**：`<路径> <sha256>`（此前写成了 `<sha256> <路径>`）。
+
+## v3.4 行为变更（tls-crypt 与 MTU 加固）
+
+- **tls-crypt**：新增 `tls_crypt` 选项，开启后服务端配置输出 `tls-crypt /etc/openvpn/pki/tc.key`，客户端 `.ovpn` 自动嵌入 `<tls-crypt>` 块，加密 TLS 控制通道、隐藏证书握手特征。
+  - 密钥由 init 在缺失时自动生成（`openvpn --genkey secret`，0600）；执行「重建全部证书」时会同时轮换该密钥。
+  - **新装默认开启**；从旧版本升级时，配置里没有 `tls_crypt` 选项则保持关闭，避免旧客户端突然断连。开启后所有客户端必须重新下载 `.ovpn`。
+- **tun-mtu / mssfix**：新增 `tun_mtu`（默认 1400）和 `mssfix`（默认 1360）选项；服务端运行时配置与客户端 `.ovpn` 都会写入相同的值，避免 PPPoE（1492）下隧道大包被丢弃。
+  - 同样是**新装默认生效、旧配置保持原样**；调整后客户端也要重新下载 `.ovpn`，两端 MTU 必须一致。
+- 以上两项都涉及客户端配置变更，升级/开启前请重新导出 `.ovpn`。
 
 ## 安装
 

@@ -216,3 +216,21 @@ msgstr "确定要重建全部证书吗？"
 
 msgid "Warning: rebuilding the PKI invalidates ALL previously issued client certificates, every client must import the new config."
 msgstr "警告：重建 PKI 会作废所有已签发的客户端证书，每个客户端都必须重新导入新配置"
+
+msgid "Enable tls-crypt"
+msgstr "启用 tls-crypt"
+
+msgid "Encrypt the TLS control channel with a shared key. Every client must re-download the .ovpn file after changing this option."
+msgstr "使用共享密钥加密 TLS 控制通道。修改此项后，所有客户端都必须重新下载 .ovpn 配置文件。"
+
+msgid "Tunnel MTU"
+msgstr "隧道 MTU"
+
+msgid "Keep this identical on server and client. 1400 is safe for PPPoE (1492) and avoids large-packet drops."
+msgstr "服务端与客户端必须保持一致。PPPoE（1492）下建议 1400，可避免大包被丢弃。"
+
+msgid "MSS fix"
+msgstr "MSS 修正"
+
+msgid "Clamp TCP MSS for tunnel traffic. Use 1360 with tunnel MTU 1400; 0 disables clamping."
+msgstr "限制隧道内 TCP 的 MSS。隧道 MTU 1400 时建议 1360；0 表示不限制。"

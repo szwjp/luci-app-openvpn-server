@@ -18,7 +18,7 @@ PKG_NAME:=luci-app-openvpn-server
 # 每次改动包内容都必须递增 PKG_RELEASE，否则设备上不会升级。
 # 注意：apk 的版本比较是逐段数值比较，改动前请确认新版本严格大于线上版本。
 PKG_VERSION:=27.188.01099
-PKG_RELEASE:=102
+PKG_RELEASE:=103
 PKG_LICENSE:=Apache-2.0
 
 include $(TOPDIR)/feeds/luci/luci.mk

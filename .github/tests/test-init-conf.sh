@@ -11,6 +11,10 @@ cd "$(dirname "$0")/../.."
 INIT=root/etc/init.d/openvpn-server
 TESTDIR=$(mktemp -d)
 trap 'rm -rf "$TESTDIR"' EXIT
+# 伪造 tls-crypt 已存在的密钥文件，避免 init 调用真实 openvpn
+printf 'dummy-key\n' > "$TESTDIR/tc.key"
+TLS_CRYPT_KEY="$TESTDIR/tc.key"
+export TLS_CRYPT_KEY
 
 FAILED=0
 
@@ -51,6 +55,8 @@ config_get() {
 	user) eval "$1=nobody" ;;
 	group) eval "$1=nogroup" ;;
 	max_clients) eval "$1=10" ;;
+	tun_mtu) eval "$1=1400" ;;
+	mssfix) eval "$1=1360" ;;
 	keepalive) eval "$1='10 120'" ;;
 	verb) eval "$1=3" ;;
 	status) eval "$1=/var/log/openvpn_status.log" ;;
@@ -89,6 +95,9 @@ assert_present "普通 push 保留（route）" "$CONF" 'push "route 192.168.1.0 
 assert_present "普通 push 保留（redirect-gateway）" "$CONF" 'push "redirect-gateway def1 bypass-dhcp"'
 assert_present "基础参数正常输出" "$CONF" "proto tcp-server"
 assert_present "证书参数正常输出" "$CONF" "dh /etc/openvpn/pki/dh.pem"
+assert_present "隧道 MTU 输出" "$CONF" "^tun-mtu 1400$"
+assert_present "MSS 修正输出" "$CONF" "^mssfix 1360$"
+assert_present "tls-crypt 输出" "$CONF" "^tls-crypt $TESTDIR/tc.key$"
 # 回归防护：服务端模式下顶层 redirect-gateway 会让 openvpn usage error 退出
 # （options.c: "--redirect-gateway cannot be used with --mode server"）。
 # 上面 stub 里 UCI 的 redirect_gateway=def1 仍在，init 必须无视它。

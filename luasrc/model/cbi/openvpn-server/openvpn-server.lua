@@ -63,7 +63,20 @@ end
 duplicate_cn = s:taboption("basic", Flag, "duplicate_cn", translate("Allow duplicate certificate login"))
 duplicate_cn.description = translate("Allow multiple clients to connect using the same certificate")
 
+tls_crypt = s:taboption("basic", Flag, "tls_crypt", translate("Enable tls-crypt"))
+tls_crypt.description = translate("Encrypt the TLS control channel with a shared key. Every client must re-download the .ovpn file after changing this option.")
+
 client_to_client = s:taboption("control", Flag, "client_to_client", translate("Allow client-to-client traffic"))
+
+tun_mtu = s:taboption("control", Value, "tun_mtu", translate("Tunnel MTU"))
+tun_mtu.datatype = "range(576,1500)"
+tun_mtu.placeholder = "1400"
+tun_mtu.description = translate("Keep this identical on server and client. 1400 is safe for PPPoE (1492) and avoids large-packet drops.")
+
+mssfix = s:taboption("control", Value, "mssfix", translate("MSS fix"))
+mssfix.datatype = "range(0,65535)"
+mssfix.placeholder = "1360"
+mssfix.description = translate("Clamp TCP MSS for tunnel traffic. Use 1360 with tunnel MTU 1400; 0 disables clamping.")
 
 keepalive = s:taboption("control", Value, "keepalive", translate("Keepalive"))
 keepalive.datatype = "string"

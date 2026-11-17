@@ -11,6 +11,8 @@ PROG=/usr/sbin/openvpn
 
 CONF_DIR=/var/etc
 CONF=
+# tls-crypt 共享密钥；测试可通过环境变量覆盖，避免碰真实 /etc
+TLS_CRYPT_KEY="${TLS_CRYPT_KEY:-/etc/openvpn/pki/tc.key}"
 
 # 输出 "opt value"，选项名下划线转横线，空值跳过
 emit() {
@@ -45,6 +47,7 @@ server_instance() {
 	local ca dh cert key persist_key persist_tun user group
 	local max_clients keepalive verb status log
 	local duplicate_cn client_to_client
+	local tls_crypt tun_mtu mssfix
 
 	config_get_bool enabled "$s" enabled 0
 	[ "$enabled" -gt 0 ] || return 1
@@ -69,6 +72,11 @@ server_instance() {
 	config_get log "$s" log
 	config_get duplicate_cn "$s" duplicate_cn
 	config_get client_to_client "$s" client_to_client
+	# 升级保护：旧配置没有这些选项时不改变原有行为（tls-crypt 关、MTU 默认）。
+	# 新装的默认配置里显式写了 1 / 1400 / 1360。
+	config_get_bool tls_crypt "$s" tls_crypt 0
+	config_get tun_mtu "$s" tun_mtu
+	config_get mssfix "$s" mssfix
 
 	mkdir -p "$CONF_DIR"
 	CONF="$CONF_DIR/openvpn-server-$s.conf"
@@ -77,6 +85,8 @@ server_instance() {
 	emit proto "$proto"
 	emit port "$port"
 	emit dev "$dev"
+	emit tun_mtu "$tun_mtu"
+	emit mssfix "$mssfix"
 	emit topology "$topology"
 	emit server "$server"
 	# 刻意不输出 comp_lzo/compress（也不读取该选项）：任何压缩项都会让服务端
@@ -96,6 +106,20 @@ server_instance() {
 	emit log "$log"
 	emit_bool duplicate_cn "$duplicate_cn"
 	emit_bool client_to_client "$client_to_client"
+
+	# tls-crypt：加密控制通道。启用但密钥缺失时先生成；生成失败则拒绝启动，
+	# 避免服务端"以为开了 tls-crypt"而客户端配置对不上。
+	if [ "$tls_crypt" = "1" ]; then
+		if [ ! -s "$TLS_CRYPT_KEY" ]; then
+			( umask 077; "$PROG" --genkey secret "$TLS_CRYPT_KEY" >/dev/null 2>&1 )
+		fi
+		if [ ! -s "$TLS_CRYPT_KEY" ]; then
+			command -v logger >/dev/null 2>&1 && \
+				logger -t openvpn-server "tls-crypt enabled but $TLS_CRYPT_KEY is missing and could not be generated"
+			return 1
+		fi
+		emit tls_crypt "$TLS_CRYPT_KEY"
+	fi
 	# 刻意不输出 redirect-gateway：服务端模式下 openvpn 禁止顶层 --redirect-gateway
 	# （options.c: "--redirect-gateway cannot be used with --mode server"），
 	# 写了会让 openvpn 直接 usage error 退出。要下发默认路由请用 push 列表。

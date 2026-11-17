@@ -44,6 +44,13 @@ if [ ! -f "/etc/openvpn/pki/ca.crt" ]; then
 	sh /etc/openvpn/renewcert.sh >/dev/null 2>&1
 fi
 
+# 已启用 tls-crypt 但密钥缺失时补生成，保证客户端 .ovpn 下载不失败。
+# 旧配置没有 tls_crypt 选项时保持原行为（不启用）。
+if [ "$(uci -q get openvpn-server.myvpn.tls_crypt)" = "1" ] && [ ! -s /etc/openvpn/pki/tc.key ]; then
+	( umask 077; openvpn --genkey secret /etc/openvpn/pki/tc.key >/dev/null 2>&1 )
+	chmod 600 /etc/openvpn/pki/tc.key 2>/dev/null
+fi
+
 if [ -x /etc/init.d/openvpn ]; then
 	/etc/init.d/openvpn disable 2>/dev/null
 	/etc/init.d/openvpn stop 2>/dev/null
